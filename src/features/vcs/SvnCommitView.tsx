@@ -140,7 +140,7 @@ export function SvnCommitView() {
     return (
       <div
         key={r.path}
-        className={clsx(styles.row, selectedFile === r.path && styles.rowSelected)}
+        className={clsx(styles.row, styles.fileRow, selectedFile === r.path && styles.rowSelected)}
         onClick={() => setSelectedFile(r.path)}
         onDoubleClick={() => openPreview(r)}
       >
@@ -207,7 +207,9 @@ export function SvnCommitView() {
           />
           <span className={styles.groupTitle}>
             {title}
-            <span className={styles.count}>{list.length}</span>
+            <span className={styles.count}>
+              {list.length} {list.length === 1 ? "file" : "files"}
+            </span>
           </span>
         </div>
         {open && list.map(renderRow)}
