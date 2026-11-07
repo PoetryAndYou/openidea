@@ -33,7 +33,8 @@ jobs:
           cache: pnpm
 
       - uses: dtolnay/rust-toolchain@stable
-        targets: x86_64-pc-windows-msvc
+        with:
+          targets: x86_64-pc-windows-msvc
 
       - uses: Swatinem/rust-cache@v2
         with:
