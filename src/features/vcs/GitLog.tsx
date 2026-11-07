@@ -85,7 +85,7 @@ import {
 import { logOptions, refLabels, useLogOptions, type LogOptions } from "./logOptions";
 import { KIND_COLOR, baseName, dirName, fileCount, formatTime, relTo, type EffectiveKind } from "./model";
 import { clearConsole, useVcsConsole } from "./ops";
-import { currentRepo, currentRepoRoot, loadBranches, repoName, useVcs } from "./store";
+import { currentRepo, currentRepoRoot, loadBranches, repoName, useVcs, vcsKind } from "./store";
 import { loadFavoriteBranches, useFavoriteBranches } from "./branchOps";
 import { branchMenu, inRepo, tagMenu } from "./branchMenu";
 import {
@@ -157,7 +157,11 @@ function useGitTabs() {
   const tab = useGitLog((s) => s.tab);
   const logTabs = useGitLog((s) => s.logTabs);
   const counts = useStashTabCounts(available && modal);
-  const tabs = gitTabs({ modal, combine, tab, logTabs, ...counts });
+  const svn = useVcs((s) => vcsKind(s.repo ?? s.roots[0] ?? null) === "svn");
+  // A working copy has no local branches, stashes or worktrees: only Log and Console apply.
+  const tabs = gitTabs({ modal, combine, tab, logTabs, ...counts }).filter(
+    (t) => !svn || t.id === "log" || t.id === "console" || t.id.startsWith("log:"),
+  );
   return { tabs, shown: shownTab(tab, tabs, combine) };
 }
 
@@ -229,7 +233,9 @@ export function LogView() {
   const root = useVcs((s) => s.root);
   const repo = useLogRepositories();
   const readOnly = useReadOnlyLog();
-  const showBranches = useLogOptions((s) => s.showBranches);
+  // A working copy has no branches to filter the log by.
+  const svn = useVcs((s) => vcsKind(s.repo ?? s.roots[0] ?? null) === "svn");
+  const showBranches = useLogOptions((s) => s.showBranches) && !svn;
   const showDetails = useLogOptions((s) => s.showDetails);
   const branchesLoaded = useVcs((s) => s.branchesLoaded);
   const lastRefs = useRef<string | null>(null);
