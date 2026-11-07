@@ -408,7 +408,7 @@ export function contextMenuItems(nodes: ProjectNode[]): MenuItem[] {
           act("vcs.svnAdd", arg, "Add"),
           { kind: "separator" },
           singleFile && act("vcs.annotate", singleFile.path, "Annotate"),
-          act("vcs.showDiff", arg, "Show Diff"),
+          act("vcs.svnShowDiff", arg, "Show Diff"),
           nodes.length > 0 && nodes.every((n) => !n.placeholder) && act("vcs.showHistory", arg, "Show History"),
           act("vcs.svnRevert", arg, "Revert…"),
           { kind: "separator" },

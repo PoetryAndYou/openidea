@@ -16,7 +16,7 @@ import { openDiff, withChain, type DiffData } from "./diffInput";
 import styles from "./SvnCommitView.module.css";
 
 /** Working diff against BASE: added/unversioned files have no BASE side. */
-function svnDiffData(path: string, kind: EffectiveKind | null): DiffData {
+export function svnDiffData(path: string, kind: EffectiveKind | null): DiffData {
   const none: DiffData["left"] = { type: "text", text: "", label: "(does not exist)" };
   const left: DiffData["left"] =
     kind === "untracked" || kind === "added" ? none : { type: "rev", rev: "BASE", label: "BASE" };
