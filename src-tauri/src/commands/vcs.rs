@@ -953,3 +953,22 @@ pub async fn vcs_svn_ignore(
 pub async fn vcs_svn_cleanup(window: Window, state: State<'_, AppState>, repo: Option<PathBuf>) -> IdeResult<()> {
     ide_host::ops::vcs::vcs_svn_cleanup(&state.host, window.label(), repo).await
 }
+
+/// Marks conflicts resolved, keeping the working file's content.
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_resolve(window: Window, state: State<'_, AppState>, paths: Vec<PathBuf>) -> IdeResult<()> {
+    ide_host::ops::vcs::vcs_svn_resolve(&state.host, window.label(), paths).await
+}
+
+/// `svn update -r REV`.
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_update_to(
+    window: Window,
+    state: State<'_, AppState>,
+    repo: Option<PathBuf>,
+    revision: String,
+) -> IdeResult<ide_vcs_svn::UpdateSummary> {
+    ide_host::ops::vcs::vcs_svn_update_to(&state.host, window.label(), repo, revision).await
+}

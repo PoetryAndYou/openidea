@@ -286,6 +286,26 @@ impl SvnRepo {
         Ok(changed)
     }
 
+    /// Marks conflicts as resolved, keeping the working file's content
+    /// (`svn resolve --accept working`).
+    pub fn resolve(&self, paths: &[PathBuf]) -> IdeResult<()> {
+        if paths.is_empty() {
+            return Ok(());
+        }
+        let mut args = vec!["resolve", "--accept", "working"];
+        let targets: Vec<String> = paths.iter().map(|path| path.to_string_lossy().into_owned()).collect();
+        args.extend(targets.iter().map(String::as_str));
+        self.run(&args).map(|_| ())
+    }
+
+    /// Updates the working copy to `revision` (`svn update -r`), keeping local
+    /// changes and leaving conflicts in the tree.
+    pub fn update_to(&self, revision: &str) -> IdeResult<UpdateSummary> {
+        let rev = normalize_rev(revision);
+        let out = self.run(&["update", "-r", &rev, "--accept", "postpone"])?;
+        Ok(UpdateSummary { revision: rev_from(&out).unwrap_or_else(|| format!("r{rev}")), output: out })
+    }
+
     /// Removes stale locks and resumes unfinished operations (`svn cleanup`) —
     /// the way out of `E155004: run 'svn cleanup'`.
     pub fn cleanup(&self) -> IdeResult<()> {
@@ -387,10 +407,27 @@ impl SvnRepo {
     }
 }
 
+/// An explicitly configured `svn` (Settings › Version Control › Subversion),
+/// used by [`detect_svn`] before `PATH` and the probe list.
+static SVN_EXECUTABLE: std::sync::RwLock<Option<std::path::PathBuf>> = std::sync::RwLock::new(None);
+
+/// Sets the `svn` executable configured in the settings; `None` clears it.
+pub fn set_svn_executable(path: Option<&Path>) {
+    *SVN_EXECUTABLE.write().unwrap_or_else(|e| e.into_inner()) = path.map(Path::to_path_buf);
+}
+
+/// The configured `svn` executable, when set and present.
+pub fn configured_svn() -> Option<std::path::PathBuf> {
+    SVN_EXECUTABLE.read().unwrap_or_else(|e| e.into_inner()).clone().filter(|p| p.is_file())
+}
+
 /// The `svn` client: `PATH` first, then the usual install locations. A GUI app
 /// started from the Dock inherits a minimal `PATH` (`/usr/bin:/bin:/usr/sbin:/sbin`),
 /// so Homebrew's and MacPorts' prefixes are probed by name.
 fn detect_svn() -> Option<std::path::PathBuf> {
+    if let Some(configured) = configured_svn() {
+        return Some(configured);
+    }
     if let Ok(path) = which::which("svn") {
         return Some(path);
     }

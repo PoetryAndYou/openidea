@@ -125,6 +125,27 @@ function GitExecutableRow() {
   );
 }
 
+function SvnExecutableRow() {
+  const [path, set] = useSetting<string>("vcs.svn.executable");
+  const id = useId();
+  return (
+    <Row
+      label="Path to svn executable"
+      htmlFor={id}
+      hint="Leave empty to detect it (PATH, Homebrew, MacPorts, /usr/bin, TortoiseSVN)."
+    >
+      <Input
+        id={id}
+        mono
+        className={styles.wide}
+        value={path}
+        placeholder="Auto-detected"
+        onChange={(e) => set(e.target.value)}
+      />
+    </Row>
+  );
+}
+
 function ProtectedBranchesRow() {
   const [value, set] = useSetting<string>("vcs.git.protectedBranches");
   const id = useId();
@@ -149,7 +170,8 @@ function GitCredentialsRow() {
   const forget = async (key: string) => {
     await commands.gitCredentialForget(key);
     setHosts((h) => h.filter((k) => k !== key));
-  };
+  
+};
   if (hosts.length === 0)
     return (
       <Row
@@ -475,6 +497,18 @@ export const VCS_PAGES: PageSpec[] = [
     keywords: ["root", "repository", "vcs root"],
     sections: [
       { options: [{ kind: "custom", label: "Directory", keywords: ["VCS", "Git"], component: MappingsTable }] },
+    ],
+  },
+  {
+    id: "vcs.svn",
+    title: "Subversion",
+    order: 9,
+    projectScope: true,
+    keywords: ["svn", "subversion", "executable", "working copy"],
+    sections: [
+      {
+        options: [{ kind: "custom", label: "Path to svn executable", component: SvnExecutableRow }],
+      },
     ],
   },
   {

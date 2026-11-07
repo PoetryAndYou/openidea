@@ -508,6 +508,10 @@ export const commands = {
 	vcsSvnIgnore: (paths: string[]) => typedError<IpcPath[], IdeError>(__TAURI_INVOKE("vcs_svn_ignore", { paths })),
 	/**  `svn cleanup`: removes stale locks left by an interrupted operation. */
 	vcsSvnCleanup: (repo: string | null) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_cleanup", { repo })),
+	/**  Marks conflicts resolved, keeping the working file's content. */
+	vcsSvnResolve: (paths: string[]) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_resolve", { paths })),
+	/**  `svn update -r REV`. */
+	vcsSvnUpdateTo: (repo: string | null, revision: string) => typedError<UpdateSummary, IdeError>(__TAURI_INVOKE("vcs_svn_update_to", { repo, revision })),
 	/**  Reverts working changes of paths (`svn revert`). */
 	vcsSvnRevert: (paths: string[]) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_revert", { paths })),
 	vcsBranchInfo: (repo: string | null) => typedError<BranchInfo, IdeError>(__TAURI_INVOKE("vcs_branch_info", { repo })),
@@ -7556,6 +7560,12 @@ export type SvnInfo = {
 	date: number | null,
 };
 
+/**  The `svn` command-line client. */
+export type SvnSettings = {
+	/**  Absolute path to `svn`; empty detects it from `PATH` and the usual install locations. */
+	executable?: string,
+};
+
 export type SymbolFilter = "all" | 
 /**  Go to Class (⌘O): classes, interfaces, structs, enums, traits, type aliases. */
 "types";
@@ -8003,6 +8013,8 @@ export type VcsSettings = {
 	limitHistory?: boolean,
 	historyLimit?: number,
 	git?: GitSettings,
+	/**  Subversion: the `svn` executable (empty = detect). */
+	svn?: SvnSettings,
 	commit?: CommitSettings,
 	confirmation?: VcsConfirmationSettings,
 	shelf?: ShelfSettings,

@@ -261,6 +261,8 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
         vcs::vcs_svn_delete,
         vcs::vcs_svn_ignore,
         vcs::vcs_svn_cleanup,
+        vcs::vcs_svn_resolve,
+        vcs::vcs_svn_update_to,
         vcs::vcs_svn_revert,
         vcs::vcs_branch_info,
         vcs::vcs_line_hunks,

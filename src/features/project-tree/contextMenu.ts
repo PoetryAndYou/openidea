@@ -383,6 +383,8 @@ export function contextMenuItems(nodes: ProjectNode[]): MenuItem[] {
           act("vcs.svnRevert", arg, "Revert…"),
           { kind: "separator" },
           act("vcs.svnUpdate", undefined, "Update"),
+          act("vcs.svnUpdateTo", undefined, "Update to Revision…"),
+          act("vcs.svnResolve", arg, "Mark Resolved"),
           act("vcs.svnCleanup", undefined, "Cleanup Working Copy"),
           { kind: "separator" },
           act("vcs.svnInfo", undefined, "Show Repository Info"),

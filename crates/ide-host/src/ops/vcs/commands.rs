@@ -1505,6 +1505,37 @@ pub async fn vcs_svn_ignore(host: &Host, window: &str, paths: Vec<PathBuf>) -> I
     .await
 }
 
+/// Marks conflicts resolved, keeping the working file's content (`svn resolve`).
+pub async fn vcs_svn_resolve(host: &Host, window: &str, paths: Vec<PathBuf>) -> IdeResult<()> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        for (repo, paths) in group_svn_paths(&project, &paths) {
+            repo.resolve(&paths)?;
+        }
+        project.sink.emit(ide_core::IdeEvent::VcsChanged { root: project.root.clone().into() });
+        Ok(())
+    })
+    .await
+}
+
+/// `svn update -r REV`: moves the working copy to `revision`.
+pub async fn vcs_svn_update_to(
+    host: &Host,
+    window: &str,
+    repo: Option<PathBuf>,
+    revision: String,
+) -> IdeResult<ide_vcs_svn::UpdateSummary> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        let svn = svn_target(&project, repo.as_deref())
+            .ok_or_else(|| ide_core::IdeError::unavailable("project has no Subversion working copy"))?;
+        svn.update_to(&revision)
+    })
+    .await
+}
+
 /// `svn cleanup`: removes stale locks left by an interrupted operation.
 pub async fn vcs_svn_cleanup(host: &Host, window: &str, repo: Option<PathBuf>) -> IdeResult<()> {
     host.require_trust(window)?;
@@ -1554,6 +1585,10 @@ pub(crate) fn register(d: &mut Dispatcher) {
     d.add("vcs_svn_delete", |c| async move { vcs_svn_delete(&c.host, &c.window, c.arg("paths")?).await });
     d.add("vcs_svn_ignore", |c| async move { vcs_svn_ignore(&c.host, &c.window, c.arg("paths")?).await });
     d.add("vcs_svn_cleanup", |c| async move { vcs_svn_cleanup(&c.host, &c.window, c.arg("repo")?).await });
+    d.add("vcs_svn_resolve", |c| async move { vcs_svn_resolve(&c.host, &c.window, c.arg("paths")?).await });
+    d.add("vcs_svn_update_to", |c| async move {
+        vcs_svn_update_to(&c.host, &c.window, c.arg("repo")?, c.arg("revision")?).await
+    });
     d.add("vcs_svn_revert", |c| async move { vcs_svn_revert(&c.host, &c.window, c.arg("paths")?).await });
     d.add("vcs_branch_info", |c| async move { vcs_branch_info(&c.host, &c.window, c.arg("repo")?).await });
     d.add("vcs_line_hunks", |c| async move { vcs_line_hunks(&c.host, &c.window, c.arg("path")?).await });

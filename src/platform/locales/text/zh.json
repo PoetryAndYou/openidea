@@ -6445,5 +6445,17 @@
   "Couldn't regenerate the response": "无法重新生成回复",
   "Reasoning": "思考过程",
   "Cannot copy the value": "无法复制该值",
-  "The check could not run: {reason}": "检查无法运行：{reason}"
+  "The check could not run: {reason}": "检查无法运行：{reason}",
+  "Subversion": "Subversion",
+  "Update to Revision…": "更新到修订…",
+  "Add to svn:ignore": "添加到 svn:ignore",
+  "Added to svn:ignore in %s folder": "已添加到 %s 个目录的 svn:ignore",
+  "Cleanup Working Copy": "清理工作副本",
+  "Working copy cleaned": "工作副本已清理",
+  "Path to svn executable": "svn 可执行文件路径",
+  "Leave empty to detect it (PATH, Homebrew, MacPorts, /usr/bin, TortoiseSVN).": "留空自动探测（PATH、Homebrew、MacPorts、/usr/bin、TortoiseSVN）。",
+  "svn working copy": "Subversion 工作副本",
+  "No local changes for the selection": "所选内容没有本地更改",
+  "Add File to Subversion": "将文件添加到 Subversion",
+  "Remove File from Subversion": "从 Subversion 移除文件"
 }

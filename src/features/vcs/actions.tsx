@@ -55,6 +55,7 @@ import { tx } from "@/platform/i18n";
 
 import { addToIgnore } from "./ignore";
 import { call, commands } from "@/platform/ipc";
+import { promptInput } from "@/workbench/inputDialogs";
 
 const VCS = "vcsAvailable";
 const IN_COMMIT_WINDOW = "vcsAvailable && activeToolWindow == commit";
@@ -523,6 +524,47 @@ export function registerVcsActions(): () => void {
       keywords: ["ignore", "unversioned", "exclude"],
       run: ({ arg }) => addToIgnore(contextPaths(arg), destination),
     })),
+    {
+      id: "vcs.svnUpdateTo",
+      title: "Update to Revision…",
+      category: "Subversion",
+      icon: "history",
+      when: VCS,
+      keywords: ["svn update -r", "revision"],
+      run: async () => {
+        const revision = await promptInput({
+          title: "Update to Revision",
+          label: "Revision (e.g. 123, r123, HEAD, BASE)",
+          initial: String(useVcs.getState().branch?.headCommit ?? ""),
+        });
+        if (!revision?.trim()) return;
+        const result = await call(commands.vcsSvnUpdateTo(currentRepo(), revision.trim()));
+        await refreshNow();
+        notifications().notify({ group: "vcs", level: "info", title: tx`Updated to ${result.revision}` });
+      },
+    },
+    {
+      id: "vcs.svnResolve",
+      title: "Mark Resolved",
+      category: "Subversion",
+      icon: "check",
+      when: VCS,
+      keywords: ["svn resolve", "conflict"],
+      run: async ({ arg }) => {
+        const explicit = argPaths(arg);
+        const conflicted = useVcs
+          .getState()
+          .status.filter((f) => effectiveKind(f) === "conflicted")
+          .map((f) => f.path);
+        const paths = explicit?.length ? explicit : conflicted;
+        if (!paths.length) {
+          notifications().notify({ group: "vcs", level: "info", title: tx`No conflicts to resolve` });
+          return;
+        }
+        await call(commands.vcsSvnResolve(paths));
+        await refreshNow();
+      },
+    },
     {
       id: "vcs.svnIgnore",
       title: "Add to svn:ignore",
