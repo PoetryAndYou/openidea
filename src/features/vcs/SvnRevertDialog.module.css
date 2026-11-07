@@ -1,0 +1,49 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hint {
+  color: var(--fg-muted);
+  font-size: var(--fs-small);
+}
+
+.list {
+  max-height: 320px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 26px;
+  padding: 0 8px;
+  font-size: var(--fs-ui);
+  color: var(--fg-strong);
+  cursor: default;
+  white-space: nowrap;
+}
+
+.row:hover {
+  background: var(--bg-tree-hover, var(--bg-hover));
+}
+
+.name {
+  flex: 0 0 auto;
+  max-width: 45%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.path {
+  flex: 0 10000 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--fg-muted);
+  font-size: var(--fs-small);
+}
