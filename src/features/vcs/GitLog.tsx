@@ -1004,7 +1004,8 @@ function FilterBar() {
                 openLogTab("log", `Log ${useGitLog.getState().logTabs.length + 1}`, "editor");
               },
             },
-            { label: "External Repository…", run: openExternalLog },
+            // Only Git can open a foreign repository (a worktree discovered by path).
+            ...(svnLog ? [] : [{ label: "External Repository…", run: openExternalLog }]),
           ])
         }
       />
