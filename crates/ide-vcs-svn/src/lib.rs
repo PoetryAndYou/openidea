@@ -488,7 +488,8 @@ fn parse_status(xml: &str, root: &Path) -> IdeResult<Vec<FileStatus>> {
         let Some(path) = entry.attribute("path") else { continue };
         let rel = path.replace('\\', "/");
         let rel = rel.trim_start_matches("./");
-        if rel.is_empty() || rel == ".openidea" || rel.starts_with(".openidea/") {
+        // "" / "." is the working copy root itself; .openidea is the IDE's own dir.
+        if rel.is_empty() || rel == "." || rel == ".openidea" || rel.starts_with(".openidea/") {
             continue;
         }
         let Some(status) = entry.children().find(|node| node.has_tag_name("wc-status")) else { continue };
