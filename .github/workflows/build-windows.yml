@@ -40,15 +40,20 @@ jobs:
         with:
           workspaces: ". -> target"
           key: ${{ runner.os }}-release
+          cache-on-failure: true
 
       - name: Install frontend dependencies
         run: pnpm install --frozen-lockfile
 
+      # The updater wants a signing key that a fork does not have; the fork's
+      # build ships without the updater, so drop it from the config first.
+      - name: Disable updater artifacts
+        shell: pwsh
+        run: |
+          node -e "const fs=require('fs');const p='src-tauri/tauri.conf.json';const j=JSON.parse(fs.readFileSync(p));if(j.bundle)delete j.bundle.createUpdaterArtifacts;if(j.plugins&&j.plugins.updater)delete j.plugins.updater;fs.writeFileSync(p,JSON.stringify(j,null,2))"
+
       - name: Build the app
         run: pnpm tauri build --bundles nsis
-        env:
-          # No updater signing key on a fork: skip the .sig step gracefully.
-          TAURI_SIGNING_PRIVATE_KEY: ""
 
       - name: Collect artifacts
         shell: pwsh
