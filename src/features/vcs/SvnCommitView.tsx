@@ -13,6 +13,7 @@ import { call, commands } from "@/platform/ipc";
 import { basename, dirname } from "@/platform/project";
 import { Icon, T, fileIconName } from "@/ui";
 import { tx } from "@/platform/i18n";
+import { deleteFiles } from "./changeOps";
 import { openDiff, withChain, type DiffData } from "./diffInput";
 import styles from "./SvnCommitView.module.css";
 
@@ -174,7 +175,11 @@ export function SvnCommitView() {
             className={styles.link}
             onClick={(e) => {
               e.stopPropagation();
-              void run("revert", () => call(commands.vcsSvnRevert([r.path])));
+              // Unversioned: it exists only in the working tree, so rolling it back
+              // means removing it. A scheduled add is un-added; anything else is
+              // restored from BASE.
+              if (r.kind === "untracked") void deleteFiles([r.path]);
+              else void run("revert", () => call(commands.vcsSvnRevert([r.path])));
             }}
           >
             {tx("Revert")}
