@@ -547,14 +547,19 @@ fn parse_log(xml: &str) -> IdeResult<Vec<Commit>> {
         .descendants()
         .filter(|node| node.has_tag_name("logentry"))
         .map(|entry| {
-            let revision = format!("r{}", entry.attribute("revision").unwrap_or_default());
+            let number: u64 = entry.attribute("revision").and_then(|r| r.parse().ok()).unwrap_or(0);
+            let revision = format!("r{number}");
             let author = child_text(&entry, "author");
             let message = child_text(&entry, "msg");
             let time_ms = svn_date_ms(&child_text(&entry, "date"));
+            // The revision before this one is the baseline the Log's file diff shows
+            // (`r7`'s parent is `r6`): without it the left side reads "(does not exist)"
+            // and every file looks like it was added whole.
+            let parents = (number > 1).then(|| vec![format!("r{}", number - 1)]).unwrap_or_default();
             Commit {
                 id: revision.clone(),
                 short_id: revision,
-                parents: Vec::new(),
+                parents,
                 graph_parents: None,
                 graph_dashed: Vec::new(),
                 history_path: None,
@@ -860,7 +865,8 @@ second paragraph</msg>
         assert_eq!(commits[0].message, "fix: the thing\n\nsecond paragraph");
         assert_eq!(commits[0].commit_time_ms, commits[0].time_ms);
         assert!((commits[0].time_ms - 1_735_787_045_123.456).abs() < 1.0);
-        assert!(commits[0].parents.is_empty());
+        assert_eq!(commits[0].id, "r4");
+        assert_eq!(commits[0].parents, vec!["r3"]);
         assert!(commits[0].refs.is_empty());
         assert_eq!(commits[0].on_current_branch, None);
         assert_eq!(commits[1].id, "r3");
