@@ -11,7 +11,8 @@ import { currentRepoRoot, scheduleRefresh, useVcs, vcsKind } from "./store";
 import { effectiveKind, KIND_COLOR, type EffectiveKind } from "./model";
 import { call, commands } from "@/platform/ipc";
 import { basename, dirname } from "@/platform/project";
-import { Icon, fileIconName } from "@/ui";
+import { Icon, T, fileIconName } from "@/ui";
+import { tx } from "@/platform/i18n";
 import { openDiff, withChain, type DiffData } from "./diffInput";
 import styles from "./SvnCommitView.module.css";
 
@@ -166,7 +167,7 @@ export function SvnCommitView() {
                 void run("add", () => call(commands.vcsSvnAdd([r.path])));
               }}
             >
-              Add
+              {tx("Add")}
             </button>
           )}
           <button
@@ -176,7 +177,7 @@ export function SvnCommitView() {
               void run("revert", () => call(commands.vcsSvnRevert([r.path])));
             }}
           >
-            Revert
+            {tx("Revert")}
           </button>
         </span>
       </div>
@@ -206,9 +207,9 @@ export function SvnCommitView() {
             onToggle={() => toggleGroup(list, !all)}
           />
           <span className={styles.groupTitle}>
-            {title}
+            {tx(title)}
             <span className={styles.count}>
-              {list.length} {list.length === 1 ? "file" : "files"}
+              {list.length} {list.length === 1 ? tx("file") : tx("files")}
             </span>
           </span>
         </div>
@@ -221,13 +222,13 @@ export function SvnCommitView() {
     <div className={styles.root}>
       <div className={styles.list}>
         {storeError && <div className={styles.err}>status error: {storeError}</div>}
-        {rows.length === 0 && <div className={styles.empty}>No changes</div>}
+        {rows.length === 0 && <div className={styles.empty}><T>No changes</T></div>}
         {group("changes", "Changes", tracked)}
         {group("untracked", "Unversioned Files", untracked)}
       </div>
       <textarea
         className={styles.msg}
-        placeholder="Commit message"
+        placeholder={tx("Commit message")}
         value={message}
         onChange={(e) => setMessage(e.target.value)}
       />
@@ -238,17 +239,17 @@ export function SvnCommitView() {
           disabled={!message.trim() || selected.length === 0 || busy !== null}
           onClick={() => void run("commit", () => call(commands.vcsSvnCommit(repo, selected, message)))}
         >
-          {busy === "commit" ? "Committing…" : "Commit"}
+          {busy === "commit" ? "…" : tx("Commit")}
         </button>
         <button
           className={styles.ghost}
           disabled={busy !== null}
           onClick={() => void run("update", () => call(commands.vcsSvnUpdate(repo)))}
         >
-          {busy === "update" ? "Updating…" : "Update"}
+          {busy === "update" ? "…" : tx("Update")}
         </button>
         <span className={styles.summary}>
-          {selected.length} of {rows.length} selected
+          {tx`${selected.length} of ${rows.length} selected`}
         </span>
       </div>
     </div>

@@ -62,6 +62,8 @@ export interface VcsSettingsValid {
   limitHistory: boolean;
   historyLimit: number;
   git: GitSettingsValid;
+  /** Subversion: the `svn` executable (empty = detect from PATH/usual locations). */
+  svn: { executable: string };
   commit: CommitSettingsValid;
   confirmation: {
     onCreate: VcsConfirm;
@@ -220,6 +222,7 @@ export const DEFAULT_WORKFLOW: WorkflowSettings = {
     showDirtyDirectories: false,
     limitHistory: true,
     historyLimit: 1000,
+    svn: { executable: "" },
     git: {
       inlineBlame: false,
       showBranchInProjectView: false,
@@ -368,6 +371,7 @@ export function validateVcs(raw: unknown): VcsSettingsValid {
     showDirtyDirectories: bool(v.showDirtyDirectories, d.showDirtyDirectories),
     limitHistory: bool(v.limitHistory, d.limitHistory),
     historyLimit: num(v.historyLimit, d.historyLimit, L.historyLimit, true),
+    svn: { executable: text((v.svn as { executable?: unknown } | undefined)?.executable, d.svn.executable).trim() },
     git: {
       inlineBlame: bool(g.inlineBlame, d.git.inlineBlame),
       showBranchInProjectView: bool(g.showBranchInProjectView, d.git.showBranchInProjectView),

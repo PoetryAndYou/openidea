@@ -15,6 +15,8 @@ pub struct VcsSettings {
     pub limit_history: bool,
     pub history_limit: u32,
     pub git: GitSettings,
+    /// Subversion: the `svn` executable (empty = detect).
+    pub svn: SvnSettings,
     pub commit: CommitSettings,
     pub confirmation: VcsConfirmationSettings,
     pub shelf: ShelfSettings,
@@ -30,12 +32,21 @@ impl Default for VcsSettings {
             limit_history: true,
             history_limit: 1000,
             git: GitSettings::default(),
+            svn: SvnSettings::default(),
             commit: CommitSettings::default(),
             confirmation: VcsConfirmationSettings::default(),
             shelf: ShelfSettings::default(),
             issue_navigation: Vec::new(),
         }
     }
+}
+
+/// The `svn` command-line client.
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize, Type)]
+#[serde(default, rename_all = "camelCase")]
+pub struct SvnSettings {
+    /// Absolute path to `svn`; empty detects it from `PATH` and the usual install locations.
+    pub executable: String,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
