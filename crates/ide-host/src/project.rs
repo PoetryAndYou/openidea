@@ -9,6 +9,7 @@ use ide_lsp::LspManager;
 use ide_syntax::StructureService;
 use ide_text::{AppliedChange, ByteEdit};
 use ide_vcs::{Repo, Repos};
+use ide_vcs_svn::SvnRepos;
 use ide_vfs::Watcher;
 use ide_workspace::documents::DocumentObserver;
 use ide_workspace::{DocumentInfo, Documents, FileMoves, LocalHistory, ProjectRoots, SettingsStore, SourceFolder};
@@ -34,6 +35,8 @@ pub struct Project {
     pub lsp: Arc<LspManager>,
     /// Git repositories: the one containing the project root and those nested below it.
     pub repos: Arc<RwLock<Repos>>,
+    /// Subversion working copies: the one containing the project root and those nested below it.
+    pub svn_repos: Arc<RwLock<SvnRepos>>,
     /// Explicitly opened external logs remain read-only and outside project indexing.
     pub(crate) external_log_repos: RwLock<Vec<Arc<Repo>>>,
     /// Incrementally maintained syntax trees of the open documents.
@@ -302,6 +305,7 @@ impl Host {
         );
         documents.add_observer(phpstan.clone());
         let repos = Arc::new(RwLock::new(Repos::enclosing(&root)?));
+        let svn_repos = Arc::new(RwLock::new(SvnRepos::enclosing(&root)));
         for repo in repos.read().all() {
             repo.set_execution_allowed(trusted.load(Ordering::Acquire));
         }
@@ -521,6 +525,7 @@ impl Host {
             index,
             lsp,
             repos,
+            svn_repos,
             external_log_repos: RwLock::default(),
             structure: Arc::new(StructureService::new(syntax.clone())),
             syntax,
@@ -666,6 +671,7 @@ impl Host {
             index,
             lsp,
             repos: Arc::default(),
+            svn_repos: Arc::default(),
             external_log_repos: RwLock::default(),
             structure: Arc::new(StructureService::new(syntax.clone())),
             syntax,
@@ -798,6 +804,11 @@ impl Project {
             repo.set_execution_allowed(self.is_trusted());
         }
         repos
+    }
+
+    /// The project's Subversion working copies.
+    pub fn svn_repos(&self) -> SvnRepos {
+        self.svn_repos.read().clone()
     }
 
     /// Runs `f` with the repository whose root is `at`, the project's primary repository

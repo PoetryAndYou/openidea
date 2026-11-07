@@ -4353,6 +4353,7 @@ dependencies = [
  "ide-text",
  "ide-tools",
  "ide-vcs",
+ "ide-vcs-svn",
  "ide-vfs",
  "ide-workspace",
  "ignore",
@@ -4763,6 +4764,22 @@ dependencies = [
  "regex-lite",
  "serde",
  "serde_json",
+ "specta",
+ "tempfile",
+ "tracing",
+ "which",
+]
+
+[[package]]
+name = "ide-vcs-svn"
+version = "0.1.38"
+dependencies = [
+ "dunce",
+ "ide-core",
+ "ide-vcs",
+ "ignore",
+ "roxmltree",
+ "serde",
  "specta",
  "tempfile",
  "tracing",
@@ -6396,6 +6413,7 @@ dependencies = [
  "ide-text",
  "ide-tools",
  "ide-vcs",
+ "ide-vcs-svn",
  "ide-vfs",
  "ide-web",
  "ide-workspace",
@@ -7420,6 +7438,12 @@ dependencies = [
  "smallvec",
  "str_indices",
 ]
+
+[[package]]
+name = "roxmltree"
+version = "0.20.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c20b6793b5c2fa6553b250154b78d6d0db37e72700ae35fad9387a46f487c97"
 
 [[package]]
 name = "rsa"

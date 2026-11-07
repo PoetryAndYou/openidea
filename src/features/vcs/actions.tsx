@@ -48,10 +48,11 @@ import {
   showRebaseDialog,
   showWorktrees,
 } from "./gitMenuDialogs";
-import { refreshNow, repoName, useVcs } from "./store";
+import { currentRepo, refreshNow, repoName, useVcs } from "./store";
 import { tx } from "@/platform/i18n";
 
 import { addToIgnore } from "./ignore";
+import { call, commands } from "@/platform/ipc";
 
 const VCS = "vcsAvailable";
 const IN_COMMIT_WINDOW = "vcsAvailable && activeToolWindow == commit";
@@ -520,6 +521,67 @@ export function registerVcsActions(): () => void {
       keywords: ["ignore", "unversioned", "exclude"],
       run: ({ arg }) => addToIgnore(contextPaths(arg), destination),
     })),
+    {
+      id: "vcs.svnAdd",
+      title: "Add to Subversion",
+      category: "Subversion",
+      icon: "plus",
+      when: VCS,
+      keywords: ["svn add", "subversion"],
+      run: async ({ arg }) => {
+        const paths = contextPaths(arg);
+        if (!paths.length) return;
+        await call(commands.vcsSvnAdd(paths));
+        await refreshNow();
+      },
+    },
+    {
+      id: "vcs.svnRevert",
+      title: "Revert…",
+      category: "Subversion",
+      icon: "undo",
+      when: VCS,
+      keywords: ["svn revert", "rollback"],
+      run: async ({ arg }) => {
+        const paths = argPaths(arg) ?? useCommit.getState().selection;
+        if (!paths?.length) return;
+        await call(commands.vcsSvnRevert(paths));
+        await refreshNow();
+      },
+    },
+    {
+      id: "vcs.svnUpdate",
+      title: "Update",
+      category: "Subversion",
+      icon: "git-pull",
+      when: VCS,
+      keywords: ["svn update"],
+      run: async () => {
+        const result = await call(commands.vcsSvnUpdate(currentRepo()));
+        await refreshNow();
+        notifications().notify({
+          group: "vcs",
+          level: "info",
+          title: tx`Updated to ${result.revision}`,
+        });
+      },
+    },
+    {
+      id: "vcs.svnInfo",
+      title: "Show Repository Info",
+      category: "Subversion",
+      icon: "info",
+      when: VCS,
+      keywords: ["svn info", "url", "revision"],
+      run: async () => {
+        const info = await call(commands.vcsSvnInfo(currentRepo()));
+        notifications().notify({
+          group: "vcs",
+          level: "info",
+          title: tx`${info.url} @ r${info.revision}`,
+        });
+      },
+    },
     {
       id: "vcs.addToVcs",
       title: "Add to VCS",

@@ -36,7 +36,7 @@ import {
   type RepoEntry,
   type RepoRow,
 } from "./repoBranches";
-import { currentRepo, focusRepo, loadBranches, repoName, useVcs } from "./store";
+import { currentRepo, focusRepo, loadBranches, refreshNow, repoName, useVcs } from "./store";
 import styles from "./BranchWidget.module.css";
 import { tx } from "@/platform/i18n";
 
@@ -66,6 +66,7 @@ export function BranchWidget() {
   const other = useVcs((s) => (diverged && current && current !== s.repo ? (s.heads[current] ?? null) : null));
   const otherOp = useVcs((s) => (current ? (s.operations[current] ?? null) : null));
   const open = useBranchesPopup((s) => s.open);
+  const kind = useVcs((s) => (s.repo ? (s.kinds[s.repo] ?? "git") : (s.kinds[s.roots[0] ?? ""] ?? "git")));
   const extensions = useBranchWidgetExtensions((s) => s.extensions);
   const ref = useRef<HTMLButtonElement>(null);
   if (!available || !selected) return null;
@@ -87,7 +88,7 @@ export function BranchWidget() {
   const tooltip = [
     presented?.tooltip ?? "",
     repo ? tx`Repository: ${repo}` : "",
-    tx`Git branch: ${head}`,
+    kind === "svn" ? tx`Subversion: ${head}` : tx`Git branch: ${head}`,
     branch.upstream ? tx`Tracking ${branch.upstream}` : "",
     count > 1 && !repo ? tx`In all ${count} repositories` : "",
     sync,
@@ -124,7 +125,12 @@ export function BranchWidget() {
         )}
         <Icon name="chevron-down" size={14} className={styles.chevron} />
       </BarButton>
-      {open && <BranchesPopup anchor={ref} onClose={() => useBranchesPopup.setState({ open: false })} />}
+      {open &&
+        (kind === "svn" ? (
+          <SvnWidgetPopup anchor={ref} onClose={() => useBranchesPopup.setState({ open: false })} />
+        ) : (
+          <BranchesPopup anchor={ref} onClose={() => useBranchesPopup.setState({ open: false })} />
+        ))}
     </>
   );
 }
@@ -286,6 +292,83 @@ const caretAt = (e: KeyboardEvent, where: "start" | "end") => {
   if (input.selectionStart !== input.selectionEnd) return false;
   return where === "end" ? input.selectionStart === input.value.length : input.selectionStart === 0;
 };
+
+/**
+ * Subversion working copy popup: the repository location, the working copy
+ * revision and the actions that exist for SVN (there are no branches to
+ * switch in a working copy).
+ */
+function SvnWidgetPopup({ anchor, onClose }: { anchor: RefObject<HTMLElement | null>; onClose: () => void }) {
+  const [info, setInfo] = useState<{ url: string; revision: string; repoRoot: string } | null>(null);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const run = async (label: string, action: () => Promise<void>) => {
+    setBusy(label);
+    setError(null);
+    try {
+      await action();
+      await refreshNow();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(null);
+    }
+  };
+  useEffect(() => {
+    let live = true;
+    void call(commands.vcsSvnInfo(currentRepo()))
+      .then((i) => {
+        if (live) setInfo({ url: i.url, revision: i.revision, repoRoot: i.repoRoot });
+      })
+      .catch(() => undefined);
+    return () => {
+      live = false;
+    };
+  }, []);
+  return (
+    <Popup open anchor={anchor} onClose={onClose} placement="bottom-start" aria-label="Subversion" className={styles.popup}>
+      <div className={styles.svnPanel}>
+        <div className={styles.svnTitle}>Subversion</div>
+        {info ? (
+          <>
+            <div className={styles.svnRow} title={info.url}>
+              <span className={styles.svnKey}>URL</span>
+              <span className={styles.svnValue}>{info.url}</span>
+            </div>
+            <div className={styles.svnRow}>
+              <span className={styles.svnKey}>Revision</span>
+              <span className={styles.svnValue}>r{info.revision}</span>
+            </div>
+          </>
+        ) : (
+          <div className={styles.svnRow}>
+            <span className={styles.svnValue}>Reading…</span>
+          </div>
+        )}
+        {error && <div className={styles.svnError}>{error}</div>}
+        <div className={styles.svnActions}>
+          <button
+            className={styles.svnAction}
+            disabled={busy !== null}
+            onClick={() => void run("update", async () => void (await call(commands.vcsSvnUpdate(currentRepo()))))}
+          >
+            Update
+          </button>
+          <button
+            className={styles.svnAction}
+            disabled={busy !== null}
+            onClick={() => void run("refresh", async () => undefined)}
+          >
+            Refresh
+          </button>
+          <button className={styles.svnAction} onClick={() => void executeAction("vcs.commit")}>
+            Commit…
+          </button>
+        </div>
+      </div>
+    </Popup>
+  );
+}
 
 function BranchesPopup({ anchor, onClose }: { anchor: RefObject<HTMLElement | null>; onClose: () => void }) {
   const multi = useVcs((s) => s.roots.length > 1);

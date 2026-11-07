@@ -879,3 +879,52 @@ pub async fn vcs_compare_paths(
 ) -> IdeResult<ide_vcs::CompareResult> {
     ide_host::ops::vcs::vcs_compare_paths(&state.host, window.label(), paths, revision, repositories, request).await
 }
+
+/// `svn info` of the project's working copy.
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_info(
+    window: Window,
+    state: State<'_, AppState>,
+    repo: Option<PathBuf>,
+) -> IdeResult<ide_vcs_svn::SvnInfo> {
+    ide_host::ops::vcs::vcs_svn_info(&state.host, window.label(), repo).await
+}
+
+/// `svn update`: brings the working copy to HEAD, keeping local changes.
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_update(
+    window: Window,
+    state: State<'_, AppState>,
+    repo: Option<PathBuf>,
+) -> IdeResult<ide_vcs_svn::UpdateSummary> {
+    ide_host::ops::vcs::vcs_svn_update(&state.host, window.label(), repo).await
+}
+
+/// SVN commit of the selected paths with a message; returns the new revision (`rN`).
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_commit(
+    window: Window,
+    state: State<'_, AppState>,
+    repo: Option<PathBuf>,
+    paths: Vec<PathBuf>,
+    message: String,
+) -> IdeResult<String> {
+    ide_host::ops::vcs::vcs_svn_commit(&state.host, window.label(), repo, paths, message).await
+}
+
+/// Schedules paths for addition (`svn add`).
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_add(window: Window, state: State<'_, AppState>, paths: Vec<PathBuf>) -> IdeResult<()> {
+    ide_host::ops::vcs::vcs_svn_add(&state.host, window.label(), paths).await
+}
+
+/// Reverts working changes of paths (`svn revert`).
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_revert(window: Window, state: State<'_, AppState>, paths: Vec<PathBuf>) -> IdeResult<()> {
+    ide_host::ops::vcs::vcs_svn_revert(&state.host, window.label(), paths).await
+}

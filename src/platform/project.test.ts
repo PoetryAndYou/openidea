@@ -17,6 +17,7 @@ const old: BackendProject = {
   name: "old",
   trusted: true,
   isGit: false,
+  isSvn: false,
   settings: {} as BackendProject["settings"],
 };
 const next: BackendProject = { ...old, root: "/new", name: "new" };

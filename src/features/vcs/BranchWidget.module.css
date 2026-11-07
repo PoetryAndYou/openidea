@@ -211,3 +211,71 @@
 .groupRow {
   color: var(--fg-secondary);
 }
+
+/* Subversion working-copy popup */
+.svnPanel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  min-width: 340px;
+  max-width: 520px;
+}
+
+.svnTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--fg);
+}
+
+.svnRow {
+  display: flex;
+  gap: 10px;
+  font-size: 12px;
+  min-width: 0;
+}
+
+.svnKey {
+  flex: none;
+  width: 62px;
+  color: var(--fg-muted);
+}
+
+.svnValue {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--fg);
+}
+
+.svnError {
+  color: var(--danger);
+  font-size: 11px;
+}
+
+.svnActions {
+  display: flex;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.svnAction {
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--fg);
+  font-size: 12px;
+  padding: 3px 10px;
+  cursor: pointer;
+}
+
+.svnAction:hover:not(:disabled) {
+  background: var(--bg-hover);
+}
+
+.svnAction:disabled {
+  opacity: 0.4;
+  cursor: default;
+}

@@ -11,6 +11,31 @@ use specta::Type;
 use std::path::{Path, PathBuf};
 
 use crate::apply_git_executable;
+use ide_vcs_svn::SvnRepo;
+
+/// The SVN working copy a repo-scoped command targets: the given root when it
+/// is an SVN root, else the primary one of a project without Git repositories.
+fn svn_target(project: &Project, repo: Option<&Path>) -> Option<std::sync::Arc<SvnRepo>> {
+    match repo {
+        Some(root) => project.svn_repos().at_root(root).cloned(),
+        None if project.repos().is_empty() => project.svn_repos().all().first().cloned(),
+        None => None,
+    }
+}
+
+/// Groups paths by their SVN working copy, preserving order.
+fn group_svn_paths(project: &Project, paths: &[PathBuf]) -> Vec<(std::sync::Arc<SvnRepo>, Vec<PathBuf>)> {
+    let svns = project.svn_repos();
+    let mut groups: Vec<(std::sync::Arc<SvnRepo>, Vec<PathBuf>)> = Vec::new();
+    for p in paths {
+        let Some(r) = svns.for_path(p) else { continue };
+        match groups.last_mut() {
+            Some((r0, ps)) if r0.root() == r.root() => ps.push(p.clone()),
+            _ => groups.push((r.clone(), vec![p.clone()])),
+        }
+    }
+    groups
+}
 
 /// Read-only repository access also works in a standalone log window.
 struct LogAccess {
@@ -94,6 +119,9 @@ pub struct VcsRoot {
     pub head: Option<String>,
     /// HEAD commit; `None` before the first commit.
     pub head_commit: Option<String>,
+    /// Backend kind: `git` (default) or `svn`.
+    #[serde(default)]
+    pub kind: String,
 }
 
 #[derive(Clone, Serialize, Deserialize, Type)]
@@ -267,20 +295,45 @@ fn keep_private(root: &Path) {
 
 /// The project's repositories, the primary one first.
 pub fn vcs_roots(host: &Host, window: &str) -> IdeResult<Vec<VcsRoot>> {
-    let repos = host.project(window)?.repos();
+    let project = host.project(window)?;
+    let repos = project.repos();
     let primary = repos.primary().map(|r| r.root().to_path_buf());
     let mut all: Vec<&std::sync::Arc<Repo>> = repos.all().iter().collect();
     all.sort_by_key(|r| Some(r.root()) != primary.as_deref());
-    Ok(all
+    let mut out: Vec<VcsRoot> = all
         .into_iter()
         .map(|r| {
             let (head, head_commit) = r.head().unwrap_or_default();
-            VcsRoot { root: r.root().to_path_buf().into(), operation: r.operation().ok().flatten(), head, head_commit }
+            VcsRoot {
+                root: r.root().to_path_buf().into(),
+                operation: r.operation().ok().flatten(),
+                head,
+                head_commit,
+                kind: "git".into(),
+            }
         })
-        .collect())
+        .collect();
+    // Subversion working copies, primary first.
+    let svns = project.svn_repos();
+    let svn_primary = svns.all().first().map(|r| r.root().to_path_buf());
+    let mut svn_roots: Vec<&std::sync::Arc<SvnRepo>> = svns.all().iter().collect();
+    svn_roots.sort_by_key(|r| Some(r.root()) != svn_primary.as_deref());
+    for r in svn_roots {
+        let (head, head_commit) = match r.branch_info() {
+            Ok(info) => (info.head, info.head_commit),
+            Err(_) => (None, None),
+        };
+        out.push(VcsRoot { root: r.root().to_path_buf().into(), operation: None, head, head_commit, kind: "svn".into() });
+    }
+    Ok(out)
 }
 
 pub async fn vcs_branch_info(host: &Host, window: &str, repo: Option<PathBuf>) -> IdeResult<BranchInfo> {
+    if let Ok(project) = host.project(window) {
+        if let Some(svn) = svn_target(&project, repo.as_deref()) {
+            return blocking(move || svn.branch_info()).await;
+        }
+    }
     let project = LogAccess::new(host, window, repo.as_deref());
     blocking(move || project.with_log_repo_at(repo.as_deref(), |r| r.branch_info())).await
 }
@@ -290,12 +343,24 @@ pub async fn vcs_line_hunks(host: &Host, window: &str, path: PathBuf) -> IdeResu
     let project = host.project(window)?;
     blocking(move || {
         let text = project.text_of(&path)?;
+        if let Some(svn) = project.svn_repos().for_path(&path) {
+            // Live editor text vs BASE, like the Git path's buffer-vs-HEAD: typed
+            // lines appear before the file is saved.
+            let base = svn.file_at(&path, Some("BASE"))?.unwrap_or_default();
+            return Ok(ide_vcs::diff_hunks(&base, &text));
+        }
         project.with_repo_of(&path, |r| r.line_hunks(&path, &text, false, project.vcs_encoding(&path, None)?))
     })
     .await
 }
 
 pub async fn vcs_file_at(host: &Host, window: &str, path: PathBuf, rev: Option<String>) -> IdeResult<Option<String>> {
+    if let Ok(project) = host.project(window) {
+        let svns = project.svn_repos();
+        if let Some(svn) = svns.for_path(&path).cloned() {
+            return blocking(move || svn.file_at(&path, rev.as_deref())).await;
+        }
+    }
     let project = host.project(window).ok();
     let external = host.external_logs.read().get(host.owner_window(window)).and_then(|rs| {
         rs.iter().filter(|r| path.starts_with(r.root())).max_by_key(|r| r.root().components().count()).cloned()
@@ -325,6 +390,9 @@ pub async fn vcs_blame(
     let project = host.project(window)?;
     // An explicit text wins (merge view annotates its side panes, not the worktree).
     blocking(move || {
+        if let Some(svn) = project.svn_repos().for_path(&path) {
+            return svn.blame(&path);
+        }
         let text = text.or_else(|| project.documents.text_of(&path));
         project.with_repo_of(&path, |r| {
             r.blame(&path, text.as_deref(), revision.as_deref(), project.vcs_encoding(&path, revision.as_deref())?)
@@ -358,6 +426,12 @@ pub async fn vcs_block_history(
 
 pub async fn vcs_log(host: &Host, window: &str, repo: Option<PathBuf>, query: LogQuery) -> IdeResult<Vec<Commit>> {
     let project = LogAccess::new(host, window, repo.as_deref());
+    if let Some(p) = project.project.clone() {
+        if let Some(svn) = svn_target(&p, repo.as_deref()) {
+            let q = query.clone();
+            return blocking(move || svn.log(&q)).await;
+        }
+    }
     let request = query.request;
     let cancel =
         request.map_or_else(ide_core::CancellationToken::new, |id| host.begin_project_read_request(window, id));
@@ -380,11 +454,29 @@ pub async fn vcs_log_refs(
     repo: Option<PathBuf>,
 ) -> IdeResult<std::collections::BTreeMap<String, String>> {
     let project = LogAccess::new(host, window, repo.as_deref());
+    if let Some(p) = project.project.clone() {
+        if svn_target(&p, repo.as_deref()).is_some() {
+            return Ok(std::collections::BTreeMap::new());
+        }
+    }
     blocking(move || project.with_log_repo_at(repo.as_deref(), |r| r.log_refs())).await
 }
 
 pub async fn vcs_log_users(host: &Host, window: &str, repo: Option<PathBuf>) -> IdeResult<Vec<String>> {
     let project = LogAccess::new(host, window, repo.as_deref());
+    if let Some(p) = project.project.clone() {
+        if let Some(svn) = svn_target(&p, repo.as_deref()) {
+            return blocking(move || {
+                let commits = svn.log(&ide_vcs::LogQuery::default())?;
+                let mut users: Vec<String> =
+                    commits.iter().map(|c| c.author.clone()).filter(|a| !a.is_empty()).collect();
+                users.sort();
+                users.dedup();
+                Ok(users)
+            })
+            .await;
+        }
+    }
     blocking(move || project.with_log_repo_at(repo.as_deref(), |r| r.log_users())).await
 }
 
@@ -412,6 +504,11 @@ pub async fn vcs_log_details(
     revision: String,
 ) -> IdeResult<LogDetails> {
     let project = LogAccess::new(host, window, repo.as_deref());
+    if let Some(p) = project.project.clone() {
+        if let Some(svn) = svn_target(&p, repo.as_deref()) {
+            return blocking(move || svn.log_details(&revision)).await;
+        }
+    }
     blocking(move || project.with_log_repo_at(repo.as_deref(), |r| r.log_details(&revision))).await
 }
 
@@ -423,6 +520,12 @@ pub async fn vcs_log_details_batch(
     request: RequestId,
 ) -> IdeResult<Vec<LogDetails>> {
     let project = LogAccess::new(host, window, repo.as_deref());
+    if let Some(p) = project.project.clone() {
+        if let Some(svn) = svn_target(&p, repo.as_deref()) {
+            let revs = revisions.clone();
+            return blocking(move || revs.iter().map(|id| svn.log_details(id)).collect::<IdeResult<Vec<_>>>()).await;
+        }
+    }
     let cancel = host.begin_project_read_request(window, request);
     let result = blocking(move || {
         project.with_log_repo_at(repo.as_deref(), |r| {
@@ -462,6 +565,11 @@ pub async fn vcs_commit_files(
     commit: String,
 ) -> IdeResult<Vec<ChangedFile>> {
     let project = LogAccess::new(host, window, repo.as_deref());
+    if let Some(p) = project.project.clone() {
+        if let Some(svn) = svn_target(&p, repo.as_deref()) {
+            return blocking(move || svn.commit_files(&commit)).await;
+        }
+    }
     blocking(move || project.with_log_repo_at(repo.as_deref(), |r| r.commit_files(&commit))).await
 }
 
@@ -478,11 +586,19 @@ pub async fn vcs_commits_changes(
 
 pub async fn vcs_branches(host: &Host, window: &str, repo: Option<PathBuf>) -> IdeResult<Vec<Branch>> {
     let project = LogAccess::new(host, window, repo.as_deref());
+    if let Some(p) = project.project.clone() {
+        if svn_target(&p, repo.as_deref()).is_some() {
+            return Ok(vec![]);
+        }
+    }
     blocking(move || project.with_log_repo_at(repo.as_deref(), |r| r.branches())).await
 }
 
 pub async fn vcs_stashes(host: &Host, window: &str, repo: Option<PathBuf>) -> IdeResult<Vec<Stash>> {
     let project = host.project(window)?;
+    if svn_target(&project, repo.as_deref()).is_some() {
+        return Ok(vec![]);
+    }
     blocking(move || project.with_repo_at(repo.as_deref(), |r| r.stashes())).await
 }
 
@@ -536,6 +652,16 @@ pub async fn vcs_stage_patch(host: &Host, window: &str, patch: String) -> IdeRes
 pub async fn vcs_discard(host: &Host, window: &str, paths: Vec<PathBuf>) -> IdeResult<()> {
     host.require_trust(window)?;
     let project = host.project(window)?;
+    if !project.svn_repos().is_empty() {
+        // SVN rollback: `svn revert` per working copy.
+        return blocking(move || {
+            for (repo, paths) in group_svn_paths(&project, &paths) {
+                repo.revert(&paths)?;
+            }
+            Ok(())
+        })
+        .await;
+    }
     blocking(move || per_repo(&project, &paths, Some("Rollback"), |r, paths| r.discard(paths))).await
 }
 
@@ -807,8 +933,13 @@ pub async fn vcs_conflict_versions(host: &Host, window: &str, path: PathBuf) -> 
 
 pub async fn vcs_diff_text(host: &Host, window: &str, path: PathBuf, staged: bool) -> IdeResult<String> {
     let project = host.project(window)?;
-    blocking(move || project.with_repo_of(&path, |r| r.diff_text(&path, staged, project.vcs_encoding(&path, None)?)))
-        .await
+    blocking(move || {
+        if let Some(svn) = project.svn_repos().for_path(&path) {
+            return svn.diff_text(&path);
+        }
+        project.with_repo_of(&path, |r| r.diff_text(&path, staged, project.vcs_encoding(&path, None)?))
+    })
+    .await
 }
 
 /// Line hunks between two arbitrary texts (diff viewer, commit dialog).
@@ -1288,8 +1419,87 @@ pub async fn vcs_write_patch(host: &Host, window: &str, path: PathBuf, patch: St
 }
 
 /// Commands of this module the remote server answers.
+/// `svn info` of the target working copy.
+pub async fn vcs_svn_info(host: &Host, window: &str, repo: Option<PathBuf>) -> IdeResult<ide_vcs_svn::SvnInfo> {
+    let project = host.project(window)?;
+    blocking(move || {
+        let svn = svn_target(&project, repo.as_deref())
+            .ok_or_else(|| ide_core::IdeError::unavailable("project has no Subversion working copy"))?;
+        svn.info()
+    })
+    .await
+}
+
+/// `svn update`: brings the working copy to HEAD; local changes are kept and
+/// conflicts left in the tree (`--accept postpone`).
+pub async fn vcs_svn_update(
+    host: &Host,
+    window: &str,
+    repo: Option<PathBuf>,
+) -> IdeResult<ide_vcs_svn::UpdateSummary> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        let svn = svn_target(&project, repo.as_deref())
+            .ok_or_else(|| ide_core::IdeError::unavailable("project has no Subversion working copy"))?;
+        svn.update()
+    })
+    .await
+}
+
+/// SVN commit of an explicit path list (the panel's selection); returns `rN`.
+pub async fn vcs_svn_commit(
+    host: &Host,
+    window: &str,
+    repo: Option<PathBuf>,
+    paths: Vec<PathBuf>,
+    message: String,
+) -> IdeResult<String> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        let svn = svn_target(&project, repo.as_deref())
+            .ok_or_else(|| ide_core::IdeError::unavailable("project has no Subversion working copy"))?;
+        svn.commit(&paths, &message)
+    })
+    .await
+}
+
+/// Schedules `paths` for addition (`svn add`).
+pub async fn vcs_svn_add(host: &Host, window: &str, paths: Vec<PathBuf>) -> IdeResult<()> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        for (repo, paths) in group_svn_paths(&project, &paths) {
+            repo.add(&paths)?;
+        }
+        Ok(())
+    })
+    .await
+}
+
+/// Reverts working changes of `paths` (`svn revert`).
+pub async fn vcs_svn_revert(host: &Host, window: &str, paths: Vec<PathBuf>) -> IdeResult<()> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        for (repo, paths) in group_svn_paths(&project, &paths) {
+            repo.revert(&paths)?;
+        }
+        Ok(())
+    })
+    .await
+}
+
 pub(crate) fn register(d: &mut Dispatcher) {
     d.add("vcs_roots", |c| async move { vcs_roots(&c.host, &c.window) });
+    d.add("vcs_svn_info", |c| async move { vcs_svn_info(&c.host, &c.window, c.arg("repo")?).await });
+    d.add("vcs_svn_update", |c| async move { vcs_svn_update(&c.host, &c.window, c.arg("repo")?).await });
+    d.add("vcs_svn_commit", |c| async move {
+        vcs_svn_commit(&c.host, &c.window, c.arg("repo")?, c.arg("paths")?, c.arg("message")?).await
+    });
+    d.add("vcs_svn_add", |c| async move { vcs_svn_add(&c.host, &c.window, c.arg("paths")?).await });
+    d.add("vcs_svn_revert", |c| async move { vcs_svn_revert(&c.host, &c.window, c.arg("paths")?).await });
     d.add("vcs_branch_info", |c| async move { vcs_branch_info(&c.host, &c.window, c.arg("repo")?).await });
     d.add("vcs_line_hunks", |c| async move { vcs_line_hunks(&c.host, &c.window, c.arg("path")?).await });
     d.add("vcs_file_at", |c| async move { vcs_file_at(&c.host, &c.window, c.arg("path")?, c.arg("rev")?).await });

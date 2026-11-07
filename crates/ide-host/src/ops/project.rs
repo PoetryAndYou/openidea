@@ -14,6 +14,9 @@ pub struct ProjectInfo {
     pub root: ide_core::IpcPath,
     pub name: String,
     pub is_git: bool,
+    /// The project contains Subversion working copies (`svn` CLI required).
+    #[serde(default)]
+    pub is_svn: bool,
     pub settings: Settings,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace: Option<ide_workspace::workspace::Workspace>,
@@ -32,6 +35,7 @@ pub fn info(project: &Project) -> ProjectInfo {
             custom.to_owned()
         },
         is_git: !project.repos.read().is_empty(),
+        is_svn: !project.svn_repos.read().is_empty(),
         settings,
         root: project.root.clone().into(),
         workspace: ide_workspace::workspace::Workspace::load(&project.root).ok().flatten(),

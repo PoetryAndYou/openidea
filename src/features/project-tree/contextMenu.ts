@@ -361,6 +361,33 @@ export function contextMenuItems(nodes: ProjectNode[]): MenuItem[] {
     );
   }
 
+  // Subversion ›
+  if (inProject && project?.isSvn) {
+    const arg = vcsArg(nodes);
+    const dirs = nodes.some((n) => n.dir);
+    push(
+      submenu(
+        "svn",
+        "Subversion",
+        [
+          act("vcs.commit", undefined, dirs || nodes.length > 1 ? "Commit…" : "Commit File…"),
+          act("vcs.svnAdd", arg, "Add"),
+          { kind: "separator" },
+          singleFile && act("vcs.annotate", singleFile.path, "Annotate"),
+          act("vcs.showDiff", arg, "Show Diff"),
+          nodes.length > 0 && nodes.every((n) => !n.placeholder) && act("vcs.showHistory", arg, "Show History"),
+          act("vcs.svnRevert", arg, "Revert…"),
+          { kind: "separator" },
+          act("vcs.svnUpdate", undefined, "Update"),
+          { kind: "separator" },
+          act("vcs.svnInfo", undefined, "Show Repository Info"),
+        ],
+        "branch",
+      ),
+      { kind: "separator" },
+    );
+  }
+
   // Compare selections of the same kind; mixed file/folder selections cannot apply.
   const compareArg = single?.dir ? { path: single.path, directory: true } : single?.path;
   if (nodes.length === 2 && nodes.every((n) => n.dir && !n.placeholder))

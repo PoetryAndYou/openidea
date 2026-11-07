@@ -23,6 +23,7 @@ ide-syntax.workspace = true
 ide-search.workspace = true
 ide-lsp.workspace = true
 ide-vcs.workspace = true
+ide-vcs-svn.workspace = true
 ide-dap.workspace = true
 ide-build.workspace = true
 ide-analysis.workspace = true

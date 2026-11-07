@@ -50,6 +50,7 @@ ide-search.workspace = true
 ide-lsp.workspace = true
 ide-dap.workspace = true
 ide-vcs.workspace = true
+ide-vcs-svn.workspace = true
 ide-terminal.workspace = true
 ide-run.workspace = true
 ide-sdk.workspace = true
