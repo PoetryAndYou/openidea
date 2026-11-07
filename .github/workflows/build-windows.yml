@@ -1,0 +1,63 @@
+# Builds the Windows x64 installer + portable exe on a fork. No signing
+# secrets: the NSIS installer is unsigned (SmartScreen warns; "More info" ›
+# "Run anyway").
+name: Build Windows x64
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch or tag to build (default: this branch)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        targets: x86_64-pc-windows-msvc
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          key: ${{ runner.os }}-release
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the app
+        run: pnpm tauri build --bundles nsis
+        env:
+          # No updater signing key on a fork: skip the .sig step gracefully.
+          TAURI_SIGNING_PRIVATE_KEY: ""
+
+      - name: Collect artifacts
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item target/release/bundle/nsis/*.exe dist/ -ErrorAction SilentlyContinue
+          Get-ChildItem dist
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenIDEA-windows-x64
+          path: dist/*.exe
+          retention-days: 14
