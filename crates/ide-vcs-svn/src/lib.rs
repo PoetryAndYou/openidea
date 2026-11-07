@@ -157,7 +157,9 @@ impl SvnRepo {
         let target = self.log_target(query.path.as_deref());
         let limit_arg = limit.to_string();
         let mut commits = parse_log(&self.run(&["log", "--xml", "-v", "-l", &limit_arg, &target])?)?;
-        commits.retain(|commit| matches_author(commit, query) && matches_text(commit, query));
+        commits.retain(|commit| {
+            matches_author(commit, query) && matches_text(commit, query) && matches_date(commit, query)
+        });
         Ok(commits.into_iter().skip(query.skip as usize).take(limit as usize).collect())
     }
 
@@ -297,15 +299,10 @@ fn detect_svn() -> Option<std::path::PathBuf> {
     if let Ok(path) = which::which("svn") {
         return Some(path);
     }
-    [
-        "/opt/homebrew/bin/svn",
-        "/usr/local/bin/svn",
-        "/opt/local/bin/svn",
-        "/usr/bin/svn",
-    ]
-    .iter()
-    .map(std::path::PathBuf::from)
-    .find(|p| p.is_file())
+    ["/opt/homebrew/bin/svn", "/usr/local/bin/svn", "/opt/local/bin/svn", "/usr/bin/svn"]
+        .iter()
+        .map(std::path::PathBuf::from)
+        .find(|p| p.is_file())
 }
 
 /// The working copies of a project: the one containing the project root plus the checkouts
@@ -637,6 +634,13 @@ fn matches_text(commit: &Commit, query: &LogQuery) -> bool {
         .flatten()
         .filter(|needle| !needle.is_empty())
         .all(|needle| message.contains(&needle.to_lowercase()))
+}
+
+/// The committer-time bounds of [`LogQuery`] (`since` inclusive, `until` exclusive).
+fn matches_date(commit: &Commit, query: &LogQuery) -> bool {
+    let after = query.since_ms.is_none_or(|since| commit.time_ms >= since);
+    let before = query.until_ms.is_none_or(|until| commit.time_ms < until);
+    after && before
 }
 
 /// Milliseconds since the Unix epoch of an SVN XML timestamp such as
