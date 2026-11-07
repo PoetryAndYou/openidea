@@ -91,8 +91,13 @@ export function currentRepoRoot(): string | null {
 
 /** Backend kind of a repository root: `git` (default) or `svn`. */
 export function vcsKind(root: string | null | undefined = currentRepoRoot()): "git" | "svn" {
-  if (!root) return "git";
-  return useVcs.getState().kinds[root] ?? "git";
+  const kinds = useVcs.getState().kinds;
+  if (root && kinds[root]) return kinds[root];
+  // Before the first refresh (or when the root list is not available yet): a
+  // project with Subversion working copies and no Git repositories is SVN.
+  const project = useProject.getState().project;
+  if (project?.isSvn && !project.isGit) return "svn";
+  return "git";
 }
 
 /** Root of the innermost repository containing `path`. */
@@ -228,6 +233,7 @@ export function refreshNow(): Promise<void> {
       const repo = attentionRepo(shown, s.operations, operations) ?? shown;
       const heads = Object.fromEntries(vcsRoots.map((r) => [r.root, { head: r.head, headCommit: r.headCommit }]));
       useVcs.setState({ operations, heads, kinds });
+      if (import.meta.env.DEV) console.log("[vcs] roots=", roots, "kinds=", kinds, "repo=", repo, "status=", status.length);
       if (repo !== s.repo || roots.join("\n") !== s.roots.join("\n")) useVcs.setState({ roots, repo });
       applyStatus(status, branch);
       useVcs.setState({ branches, stashes, error: null });

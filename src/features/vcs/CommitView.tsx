@@ -79,7 +79,7 @@ import type { FileStatus } from "@/bindings";
 import { OperationBanner } from "./operations";
 import { runOp } from "./ops";
 import { ShelfPanel, loadShelves, useShelf } from "./shelf";
-import { refreshNow, repoName, selectRepo, useVcs } from "./store";
+import { refreshNow, repoName, selectRepo, useVcs, vcsKind } from "./store";
 import { SvnCommitView } from "./SvnCommitView";
 import styles from "./CommitView.module.css";
 
@@ -147,7 +147,7 @@ export function CommitTabs() {
 
 export function CommitToolWindow() {
   const available = useVcs((s) => s.available);
-  const kind = useVcs((s) => (s.repo ? (s.kinds[s.repo] ?? "git") : (s.kinds[s.roots[0] ?? ""] ?? "git")));
+  const svn = useVcs((s) => vcsKind(s.repo ?? s.roots[0] ?? null) === "svn");
   const combine = useWorkflowSettings((s) => s.vcs.git.combineStashAndShelf);
   const tab = stashTabOf(
     useCommit((s) => s.tab),
@@ -161,7 +161,7 @@ export function CommitToolWindow() {
     );
   return (
     <div className={styles.root}>
-      {tab === "changes" ? (kind === "svn" ? <SvnCommitView /> : <ChangesPanel />) : <StashContent tab={tab} />}
+      {tab === "changes" ? (svn ? <SvnCommitView /> : <ChangesPanel />) : <StashContent tab={tab} />}
     </div>
   );
 }

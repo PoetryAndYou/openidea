@@ -36,7 +36,7 @@ import {
   type RepoEntry,
   type RepoRow,
 } from "./repoBranches";
-import { currentRepo, focusRepo, loadBranches, refreshNow, repoName, useVcs } from "./store";
+import { currentRepo, focusRepo, loadBranches, refreshNow, repoName, useVcs, vcsKind } from "./store";
 import styles from "./BranchWidget.module.css";
 import { tx } from "@/platform/i18n";
 
@@ -66,7 +66,7 @@ export function BranchWidget() {
   const other = useVcs((s) => (diverged && current && current !== s.repo ? (s.heads[current] ?? null) : null));
   const otherOp = useVcs((s) => (current ? (s.operations[current] ?? null) : null));
   const open = useBranchesPopup((s) => s.open);
-  const kind = useVcs((s) => (s.repo ? (s.kinds[s.repo] ?? "git") : (s.kinds[s.roots[0] ?? ""] ?? "git")));
+  const kind = useVcs((s) => vcsKind(s.repo ?? s.roots[0] ?? null));
   const extensions = useBranchWidgetExtensions((s) => s.extensions);
   const ref = useRef<HTMLButtonElement>(null);
   if (!available || !selected) return null;
