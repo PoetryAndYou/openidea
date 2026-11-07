@@ -1034,13 +1034,16 @@ function FilterBar() {
         }
       />
       <IconButton icon="refresh" title="Refresh" size="small" onClick={() => void reloadLog({ preserve: true })} />
-      <IconButton
-        icon="sort"
-        title="Graph Options"
-        size="small"
-        aria-haspopup="menu"
-        onClick={(e) => menuBelow(e, graphOptionsMenu(useLogOptions.getState()))}
-      />
+      {/* A working copy's history is a straight line: no graph, no sort order to pick. */}
+      {!svnLog && (
+        <IconButton
+          icon="sort"
+          title="Graph Options"
+          size="small"
+          aria-haspopup="menu"
+          onClick={(e) => menuBelow(e, graphOptionsMenu(useLogOptions.getState()))}
+        />
+      )}
       <IconButton
         icon="eye"
         title="View Options"

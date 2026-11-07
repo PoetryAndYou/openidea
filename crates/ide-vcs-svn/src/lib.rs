@@ -154,9 +154,31 @@ impl SvnRepo {
     /// commits newer than that.
     pub fn log(&self, query: &LogQuery) -> IdeResult<Vec<Commit>> {
         let limit = if query.limit == 0 { DEFAULT_LOG_LIMIT } else { query.limit };
-        let target = self.log_target(query.path.as_deref());
+        // One target per filtered path (a single `svn log` accepts several URLs of
+        // the same repository); the whole working copy when nothing is filtered.
+        let mut targets: Vec<String> = Vec::new();
+        if let Some(path) = query.path.as_deref() {
+            targets.push(self.log_target(Some(path)));
+        }
+        for path in &query.paths {
+            let target = self.log_target(Some(path));
+            if !targets.contains(&target) {
+                targets.push(target);
+            }
+        }
+        if targets.is_empty() {
+            targets.push(self.log_target(None));
+        }
         let limit_arg = limit.to_string();
-        let mut commits = parse_log(&self.run(&["log", "--xml", "-v", "-l", &limit_arg, &target])?)?;
+        let mut args = vec!["log", "--xml", "-v", "-l", &limit_arg];
+        args.extend(targets.iter().map(String::as_str));
+        let xml = match self.run(&args) {
+            Ok(xml) => xml,
+            // A filtered path outside this working copy's repository: log that one path.
+            Err(_) if targets.len() > 1 => self.run(&["log", "--xml", "-v", "-l", &limit_arg, &targets[0]])?,
+            Err(error) => return Err(error),
+        };
+        let mut commits = parse_log(&xml)?;
         commits.retain(|commit| {
             matches_author(commit, query) && matches_text(commit, query) && matches_date(commit, query)
         });
