@@ -248,6 +248,79 @@ impl SvnRepo {
         self.run(&args).map(|_| ())
     }
 
+    /// Appends `paths`' names to their folders' `svn:ignore` property (SVN
+    /// ignores are per-directory properties, not a file). Returns the folders
+    /// whose property changed.
+    pub fn add_to_ignore(&self, paths: &[PathBuf]) -> IdeResult<Vec<PathBuf>> {
+        let mut groups: Vec<(PathBuf, Vec<String>)> = Vec::new();
+        for path in paths {
+            let Some(parent) = path.parent() else { continue };
+            let Some(name) = path.file_name().map(|n| n.to_string_lossy().into_owned()) else { continue };
+            match groups.iter_mut().find(|(dir, _)| dir == parent) {
+                Some((_, names)) => {
+                    if !names.contains(&name) {
+                        names.push(name);
+                    }
+                }
+                None => groups.push((parent.to_path_buf(), vec![name])),
+            }
+        }
+        let mut changed = Vec::new();
+        for (dir, names) in groups {
+            let dir_arg = dir.to_string_lossy().into_owned();
+            let current = self.run(&["propget", "svn:ignore", &dir_arg]).unwrap_or_default();
+            let mut lines: Vec<String> =
+                current.lines().map(str::trim).filter(|line| !line.is_empty()).map(str::to_string).collect();
+            let before = lines.len();
+            for name in names {
+                if !lines.contains(&name) {
+                    lines.push(name);
+                }
+            }
+            if lines.len() == before {
+                continue;
+            }
+            self.run(&["propset", "svn:ignore", &lines.join("\n"), &dir_arg])?;
+            changed.push(dir);
+        }
+        Ok(changed)
+    }
+
+    /// Removes stale locks and resumes unfinished operations (`svn cleanup`) —
+    /// the way out of `E155004: run 'svn cleanup'`.
+    pub fn cleanup(&self) -> IdeResult<()> {
+        self.run(&["cleanup"]).map(|_| ())
+    }
+
+    /// Every file present at `revision` (`svn list -R`), relative to the
+    /// working copy's branch base.
+    pub fn revision_files(&self, revision: &str) -> IdeResult<Vec<String>> {
+        let rev = normalize_rev(revision);
+        let url = self.url_of("").ok_or_else(|| IdeError::unavailable("svn working copy has no URL"))?;
+        let out = self.run(&["list", "-R", "-r", &rev, &url])?;
+        Ok(out
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty() && !line.ends_with('/'))
+            .map(str::to_string)
+            .collect())
+    }
+
+    /// Direct children of `directory` at `revision` (`svn list`, one level).
+    pub fn revision_children(&self, revision: &str, directory: &str) -> IdeResult<Vec<String>> {
+        let rev = normalize_rev(revision);
+        let url = self
+            .url_of(directory.trim_matches('/'))
+            .ok_or_else(|| IdeError::unavailable("svn working copy has no URL"))?;
+        let out = self.run(&["list", "-r", &rev, &url])?;
+        Ok(out
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty())
+            .map(|line| line.trim_end_matches('/').to_string())
+            .collect())
+    }
+
     /// Schedules deletion (`svn delete --force`). The files may already be gone
     /// from disk (the IDE deleted them), so `--force` is always passed.
     pub fn delete(&self, paths: &[PathBuf]) -> IdeResult<()> {
