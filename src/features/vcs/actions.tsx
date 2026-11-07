@@ -656,10 +656,30 @@ export function registerVcsActions(): () => void {
           notifications().notify({ group: "vcs", level: "info", title: tx`No local changes to revert` });
           return;
         }
+        // `svn revert` only knows versioned paths: unversioned files cannot be
+        // rolled back (they are removed by hand or added first).
+        const versioned = changed.filter((f) => effectiveKind(f) !== "untracked");
+        if (!versioned.length) {
+          notifications().notify({
+            group: "vcs",
+            level: "info",
+            title: tx`Only unversioned files here — nothing to revert`,
+          });
+          return;
+        }
         // Destructive: a dialog lists the files, each one comparable before the rollback.
-        showSvnRevert(changed, (paths) => {
+        showSvnRevert(versioned, (paths) => {
           void (async () => {
-            await call(commands.vcsSvnRevert(paths));
+            try {
+              await call(commands.vcsSvnRevert(paths));
+            } catch (error) {
+              notifications().notify({
+                group: "vcs",
+                level: "error",
+                title: tx("Could not revert"),
+                body: error instanceof Error ? error.message : String(error),
+              });
+            }
             await refreshNow();
           })();
         });

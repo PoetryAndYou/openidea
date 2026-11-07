@@ -6470,5 +6470,7 @@
   "Updated to %s": "已更新到 %s",
   "Discard local changes in the following files": "将丢弃以下文件的本地更改",
   "Updated to": "已更新到",
-  "Select the files to roll back. Click a file to compare it first.": "选择要还原的文件。点击文件可先比较内容。"
+  "Select the files to roll back. Click a file to compare it first.": "选择要还原的文件。点击文件可先比较内容。",
+  "Only unversioned files here — nothing to revert": "这里只有未纳入版本控制的文件，没有可还原的内容",
+  "Could not revert": "无法还原"
 }
