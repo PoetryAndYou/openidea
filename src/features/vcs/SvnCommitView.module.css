@@ -34,9 +34,10 @@
   white-space: nowrap;
 }
 
-/* File rows sit one tree level below their group header. */
-.fileRow {
-  padding-left: calc(4px + var(--tree-indent, 20px));
+/* File rows sit one tree level below their group header (24px, not tied to
+   the tree-indent setting so the commit panel's two levels stay stable). */
+.row.fileRow {
+  padding-left: 28px;
 }
 
 .row:hover {
