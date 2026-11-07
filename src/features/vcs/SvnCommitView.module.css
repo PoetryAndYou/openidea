@@ -19,34 +19,37 @@
   padding-bottom: 2px;
 }
 
+/* Tree metrics (src/ui/Tree.module.css): 24px rows, 4px + depth * --tree-indent. */
 .row {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
   height: 24px;
-  padding: 0 8px;
-  font-size: 12px;
+  padding-left: 4px;
+  padding-right: 8px;
+  border-radius: var(--radius-selection, 5px);
+  font-size: var(--fs-ui);
+  color: var(--fg-strong);
   cursor: default;
   white-space: nowrap;
 }
 
-/* File rows sit one level below their group header. */
+/* File rows sit one tree level below their group header. */
 .fileRow {
-  padding-left: 30px;
+  padding-left: calc(4px + var(--tree-indent, 20px));
 }
 
 .row:hover {
-  background: var(--bg-hover);
+  background: var(--bg-tree-hover, color-mix(in srgb, var(--fg-strong) 4%, transparent));
 }
 
 .rowSelected,
 .rowSelected:hover {
-  background: var(--bg-selected);
+  background: var(--bg-tree-selected-inactive);
 }
 
 .header {
-  height: 26px;
-  font-weight: 500;
+  font-weight: 600;
   position: sticky;
   top: 0;
   z-index: 1;
@@ -83,19 +86,22 @@
   text-overflow: ellipsis;
 }
 
+/* The name keeps its width; a long parent path truncates first. */
+
 /* The parent directory, dimmed and truncated first. */
 .dir {
-  flex: 1 1 0;
+  flex: 0 10000 auto;
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
   color: var(--fg-muted);
-  font-size: 11px;
+  font-size: var(--fs-small);
 }
 
 .links {
   flex: none;
   margin-left: auto;
+  padding-left: 8px;
   display: flex;
   gap: 2px;
 }
@@ -124,7 +130,7 @@
   padding: 0;
   background: none;
   border: none;
-  border-radius: 4px;
+  border-radius: var(--radius-small, 4px);
   color: var(--fg-secondary);
   cursor: pointer;
 }
@@ -136,14 +142,14 @@
 .groupTitle {
   flex: none;
   display: inline-flex;
-  align-items: center;
+  align-items: baseline;
   gap: 6px;
 }
 
 .count {
   color: var(--fg-muted);
   font-weight: 400;
-  font-size: 12px;
+  font-size: var(--fs-small);
   line-height: 1;
 }
 
