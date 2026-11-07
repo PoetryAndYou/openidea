@@ -6469,5 +6469,6 @@
   "Revision (e.g. 123, r123, HEAD, BASE)": "修订号（如 123、r123、HEAD、BASE）",
   "Updated to %s": "已更新到 %s",
   "Discard local changes in the following files": "将丢弃以下文件的本地更改",
-  "Updated to": "已更新到"
+  "Updated to": "已更新到",
+  "Select the files to roll back. Click a file to compare it first.": "选择要还原的文件。点击文件可先比较内容。"
 }

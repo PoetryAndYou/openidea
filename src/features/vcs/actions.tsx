@@ -30,6 +30,7 @@ import { focusedDiffNavigator } from "./diffNavigator";
 import { openDiff, withChain, workingDiffData } from "./diffInput";
 import { effectiveKind } from "./model";
 import { svnDiffData } from "./SvnCommitView";
+import { showSvnRevert } from "./SvnRevertDialog";
 import { buildChangeTree, changeGroupPaths } from "./changes";
 import { useChangelists } from "./changelists";
 import { openDialog } from "./dialogs";
@@ -56,7 +57,6 @@ import { tx } from "@/platform/i18n";
 import { addToIgnore } from "./ignore";
 import { call, commands } from "@/platform/ipc";
 import { promptInput } from "@/workbench/inputDialogs";
-import { ask } from "@/workbench/messages";
 
 const VCS = "vcsAvailable";
 const IN_COMMIT_WINDOW = "vcsAvailable && activeToolWindow == commit";
@@ -656,18 +656,13 @@ export function registerVcsActions(): () => void {
           notifications().notify({ group: "vcs", level: "info", title: tx`No local changes to revert` });
           return;
         }
-        // Destructive: confirm the paths, like the Git rollback dialog does.
-        const answer = await ask({
-          title: tx("Revert Local Changes"),
-          body: `${tx("Discard local changes in the following files")}:\n${
-            changed.slice(0, 10).map((f) => f.relPath).join("\n") + (changed.length > 10 ? "\n…" : "")
-          }`,
-          buttons: [{ id: "ok", label: tx("Revert"), primary: true }],
-          width: 460,
+        // Destructive: a dialog lists the files, each one comparable before the rollback.
+        showSvnRevert(changed, (paths) => {
+          void (async () => {
+            await call(commands.vcsSvnRevert(paths));
+            await refreshNow();
+          })();
         });
-        if (answer.button !== "ok") return;
-        await call(commands.vcsSvnRevert(changed.map((f) => f.path)));
-        await refreshNow();
       },
     },
     {
