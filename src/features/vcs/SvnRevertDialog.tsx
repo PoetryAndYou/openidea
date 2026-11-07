@@ -37,7 +37,7 @@ function SvnRevertDialog({
   onConfirm: (paths: string[]) => void;
 }) {
   const [chosen, setChosen] = useState<Record<string, boolean>>(() =>
-    Object.fromEntries(files.map((f) => [f.path, true])),
+    Object.fromEntries(files.filter((f) => effectiveKind(f) !== "untracked").map((f) => [f.path, true])),
   );
   const selected = files.filter((f) => chosen[f.path]);
   return (
@@ -73,6 +73,7 @@ function SvnRevertDialog({
                 <input
                   type="checkbox"
                   checked={chosen[f.path] ?? false}
+                  disabled={kind === "untracked"}
                   onClick={(e) => e.stopPropagation()}
                   onChange={(e) => setChosen((c) => ({ ...c, [f.path]: e.target.checked }))}
                 />
