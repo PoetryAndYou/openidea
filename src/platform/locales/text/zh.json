@@ -6457,5 +6457,17 @@
   "svn working copy": "Subversion 工作副本",
   "No local changes for the selection": "所选内容没有本地更改",
   "Add File to Subversion": "将文件添加到 Subversion",
-  "Remove File from Subversion": "从 Subversion 移除文件"
+  "Remove File from Subversion": "从 Subversion 移除文件",
+  "Revert…": "还原…",
+  "Show Repository Info": "显示仓库信息",
+  "Revert Local Changes": "还原本地更改",
+  "No local changes to revert": "没有可还原的本地更改",
+  "Discard local changes in 1 file": "将丢弃 1 个文件的本地更改",
+  "Discard local changes in %d files": "将丢弃 %d 个文件的本地更改",
+  "No conflicts to resolve": "没有需要解决的冲突",
+  "Update to Revision": "更新到修订",
+  "Revision (e.g. 123, r123, HEAD, BASE)": "修订号（如 123、r123、HEAD、BASE）",
+  "Updated to %s": "已更新到 %s",
+  "Discard local changes in the following files": "将丢弃以下文件的本地更改",
+  "Updated to": "已更新到"
 }
