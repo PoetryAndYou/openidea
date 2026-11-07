@@ -74,6 +74,7 @@ interface Row {
 
 export function SvnCommitView() {
   const status = useVcs((s) => s.status);
+  const storeError = useVcs((s) => s.error);
   const repo = currentRepoRoot();
   const svn = vcsKind(repo) === "svn";
   const [checked, setChecked] = useState<Record<string, boolean>>({});
@@ -217,6 +218,7 @@ export function SvnCommitView() {
   return (
     <div className={styles.root}>
       <div className={styles.list}>
+        {storeError && <div className={styles.err}>status error: {storeError}</div>}
         {rows.length === 0 && <div className={styles.empty}>No changes</div>}
         {group("changes", "Changes", tracked)}
         {group("untracked", "Unversioned Files", untracked)}

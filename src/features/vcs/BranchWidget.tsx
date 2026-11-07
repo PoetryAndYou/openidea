@@ -38,7 +38,7 @@ import {
   type RepoEntry,
   type RepoRow,
 } from "./repoBranches";
-import { currentRepo, focusRepo, loadBranches, refreshNow, repoName, useVcs } from "./store";
+import { currentRepo, focusRepo, loadBranches, refreshNow, repoName, useVcs, vcsKind } from "./store";
 import { BranchSync } from "./BranchSync";
 import { showSyncCommits } from "./SyncCommitsPopup";
 import type { SyncDirection } from "./syncCommits";
@@ -71,7 +71,7 @@ export function BranchWidget() {
   const other = useVcs((s) => (diverged && current && current !== s.repo ? (s.heads[current] ?? null) : null));
   const otherOp = useVcs((s) => (current ? (s.operations[current] ?? null) : null));
   const open = useBranchesPopup((s) => s.open);
-  const kind = useVcs((s) => (s.repo ? (s.kinds[s.repo] ?? "git") : (s.kinds[s.roots[0] ?? ""] ?? "git")));
+  const kind = useVcs((s) => vcsKind(s.repo ?? s.roots[0] ?? null));
   const extensions = useBranchWidgetExtensions((s) => s.extensions);
   if (!available || !selected) return null;
   // Another feature presents the current branch (the GitHub pull request on it).

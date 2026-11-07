@@ -74,7 +74,7 @@ impl SvnRepo {
         let mut dir = Some(dunce::simplified(&start));
         while let Some(current) = dir {
             if current.join(".svn").is_dir() {
-                return Ok(Some(Self { root: current.to_path_buf(), svn: which::which("svn").ok() }));
+                return Ok(Some(Self { root: current.to_path_buf(), svn: detect_svn() }));
             }
             dir = current.parent();
         }
@@ -275,6 +275,24 @@ impl SvnRepo {
         }
         Ok(String::from_utf8_lossy(&out.stdout).into_owned())
     }
+}
+
+/// The `svn` client: `PATH` first, then the usual install locations. A GUI app
+/// started from the Dock inherits a minimal `PATH` (`/usr/bin:/bin:/usr/sbin:/sbin`),
+/// so Homebrew's and MacPorts' prefixes are probed by name.
+fn detect_svn() -> Option<std::path::PathBuf> {
+    if let Ok(path) = which::which("svn") {
+        return Some(path);
+    }
+    [
+        "/opt/homebrew/bin/svn",
+        "/usr/local/bin/svn",
+        "/opt/local/bin/svn",
+        "/usr/bin/svn",
+    ]
+    .iter()
+    .map(std::path::PathBuf::from)
+    .find(|p| p.is_file())
 }
 
 /// The working copies of a project: the one containing the project root plus the checkouts

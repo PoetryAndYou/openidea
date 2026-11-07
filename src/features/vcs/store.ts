@@ -91,8 +91,13 @@ export function currentRepoRoot(): string | null {
 
 /** Backend kind of a repository root: `git` (default) or `svn`. */
 export function vcsKind(root: string | null | undefined = currentRepoRoot()): "git" | "svn" {
-  if (!root) return "git";
-  return useVcs.getState().kinds[root] ?? "git";
+  const kinds = useVcs.getState().kinds;
+  if (root && kinds[root]) return kinds[root];
+  // Before the first refresh (or when the root list is not available yet): a
+  // project with Subversion working copies and no Git repositories is SVN.
+  const project = useProject.getState().project;
+  if (project?.isSvn && !project.isGit) return "svn";
+  return "git";
 }
 
 /** Root of the innermost repository containing `path`. */
