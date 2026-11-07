@@ -1,0 +1,62 @@
+# Builds the macOS app on a fork, without the release workflow's signing and
+# notarization secrets (Settings › Secrets are not available here). The result
+# is an ad-hoc signed .app in a zip artifact: Gatekeeper asks for a right-click
+# › Open the first time.
+name: Build macOS app
+
+on:
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: "Branch or tag to build (default: this branch)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-14
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.ref || github.ref }}
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+          key: ${{ runner.os }}-release
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build the app
+        run: pnpm tauri build --bundles app
+        env:
+          # Ad-hoc signature: the app runs locally, but is not notarized.
+          APPLE_SIGNING_IDENTITY: "-"
+
+      - name: Package
+        run: |
+          app="$(ls -d target/release/bundle/macos/*.app | head -1)"
+          echo "APP_NAME=$(basename "$app" .app)" >> "$GITHUB_ENV"
+          ditto -c -k --keepParent "$app" "OpenIDEA-${{ github.sha }}.app.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: OpenIDEA-macos-arm64
+          path: OpenIDEA-*.app.zip
+          retention-days: 14
