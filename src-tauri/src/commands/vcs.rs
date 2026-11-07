@@ -935,3 +935,21 @@ pub async fn vcs_svn_revert(window: Window, state: State<'_, AppState>, paths: V
 pub async fn vcs_svn_delete(window: Window, state: State<'_, AppState>, paths: Vec<PathBuf>) -> IdeResult<()> {
     ide_host::ops::vcs::vcs_svn_delete(&state.host, window.label(), paths).await
 }
+
+/// Adds paths to their folders' `svn:ignore` properties.
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_ignore(
+    window: Window,
+    state: State<'_, AppState>,
+    paths: Vec<PathBuf>,
+) -> IdeResult<Vec<ide_core::IpcPath>> {
+    ide_host::ops::vcs::vcs_svn_ignore(&state.host, window.label(), paths).await
+}
+
+/// `svn cleanup`: removes stale locks left by an interrupted operation.
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_cleanup(window: Window, state: State<'_, AppState>, repo: Option<PathBuf>) -> IdeResult<()> {
+    ide_host::ops::vcs::vcs_svn_cleanup(&state.host, window.label(), repo).await
+}

@@ -361,6 +361,13 @@ function SvnWidgetPopup({ anchor, onClose }: { anchor: RefObject<HTMLElement | n
           >
             Refresh
           </button>
+          <button
+            className={styles.svnAction}
+            disabled={busy !== null}
+            onClick={() => void run("cleanup", async () => void (await call(commands.vcsSvnCleanup(currentRepo()))))}
+          >
+            Cleanup
+          </button>
           <button className={styles.svnAction} onClick={() => void executeAction("vcs.commit")}>
             Commit…
           </button>

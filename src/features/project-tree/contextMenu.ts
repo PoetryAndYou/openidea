@@ -372,6 +372,10 @@ export function contextMenuItems(nodes: ProjectNode[]): MenuItem[] {
         [
           act("vcs.commit", undefined, dirs || nodes.length > 1 ? "Commit…" : "Commit File…"),
           act("vcs.svnAdd", arg, "Add"),
+          nonRoot.length === nodes.length &&
+            nodes.length > 0 &&
+            nodes.every((n) => !n.placeholder) &&
+            act("vcs.svnIgnore", arg, "Add to svn:ignore"),
           { kind: "separator" },
           singleFile && act("vcs.annotate", singleFile.path, "Annotate"),
           act("vcs.svnShowDiff", arg, "Show Diff"),
@@ -379,6 +383,7 @@ export function contextMenuItems(nodes: ProjectNode[]): MenuItem[] {
           act("vcs.svnRevert", arg, "Revert…"),
           { kind: "separator" },
           act("vcs.svnUpdate", undefined, "Update"),
+          act("vcs.svnCleanup", undefined, "Cleanup Working Copy"),
           { kind: "separator" },
           act("vcs.svnInfo", undefined, "Show Repository Info"),
         ],

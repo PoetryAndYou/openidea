@@ -524,6 +524,40 @@ export function registerVcsActions(): () => void {
       run: ({ arg }) => addToIgnore(contextPaths(arg), destination),
     })),
     {
+      id: "vcs.svnIgnore",
+      title: "Add to svn:ignore",
+      category: "Subversion",
+      icon: "eye",
+      when: VCS,
+      keywords: ["svn:ignore", "ignore"],
+      run: async ({ arg }) => {
+        const paths = argPaths(arg);
+        if (!paths?.length) return;
+        const changed = await call(commands.vcsSvnIgnore(paths));
+        await refreshNow();
+        notifications().notify({
+          group: "vcs",
+          level: "info",
+          title: changed.length
+            ? tx`Added to svn:ignore in ${changed.length} folder${changed.length === 1 ? "" : "s"}`
+            : tx`Already ignored`,
+        });
+      },
+    },
+    {
+      id: "vcs.svnCleanup",
+      title: "Cleanup Working Copy",
+      category: "Subversion",
+      icon: "refresh",
+      when: VCS,
+      keywords: ["svn cleanup", "locked"],
+      run: async () => {
+        await call(commands.vcsSvnCleanup(currentRepo()));
+        await refreshNow();
+        notifications().notify({ group: "vcs", level: "info", title: tx`Working copy cleaned` });
+      },
+    },
+    {
       id: "vcs.svnShowDiff",
       title: "Show Diff",
       category: "Subversion",

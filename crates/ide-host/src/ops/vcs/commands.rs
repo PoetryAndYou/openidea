@@ -545,6 +545,11 @@ pub async fn vcs_revision_children(
     directory: String,
 ) -> IdeResult<Vec<String>> {
     let project = LogAccess::new(host, window, repo.as_deref());
+    if let Some(p) = project.project.clone() {
+        if let Some(svn) = svn_target(&p, repo.as_deref()) {
+            return blocking(move || svn.revision_children(&revision, &directory)).await;
+        }
+    }
     blocking(move || project.with_log_repo_at(repo.as_deref(), |r| r.revision_children(&revision, &directory))).await
 }
 
@@ -555,6 +560,11 @@ pub async fn vcs_revision_files(
     revision: String,
 ) -> IdeResult<Vec<String>> {
     let project = LogAccess::new(host, window, repo.as_deref());
+    if let Some(p) = project.project.clone() {
+        if let Some(svn) = svn_target(&p, repo.as_deref()) {
+            return blocking(move || svn.revision_files(&revision)).await;
+        }
+    }
     blocking(move || project.with_log_repo_at(repo.as_deref(), |r| r.revision_files(&revision))).await
 }
 
@@ -1478,6 +1488,35 @@ pub async fn vcs_svn_add(host: &Host, window: &str, paths: Vec<PathBuf>) -> IdeR
     .await
 }
 
+/// Adds `paths` to their folders' `svn:ignore` properties; returns the folders changed.
+pub async fn vcs_svn_ignore(host: &Host, window: &str, paths: Vec<PathBuf>) -> IdeResult<Vec<ide_core::IpcPath>> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        let mut changed: Vec<ide_core::IpcPath> = Vec::new();
+        for (repo, paths) in group_svn_paths(&project, &paths) {
+            for dir in repo.add_to_ignore(&paths)? {
+                changed.push(dir.into());
+            }
+        }
+        project.sink.emit(ide_core::IdeEvent::VcsChanged { root: project.root.clone().into() });
+        Ok(changed)
+    })
+    .await
+}
+
+/// `svn cleanup`: removes stale locks left by an interrupted operation.
+pub async fn vcs_svn_cleanup(host: &Host, window: &str, repo: Option<PathBuf>) -> IdeResult<()> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        let svn = svn_target(&project, repo.as_deref())
+            .ok_or_else(|| ide_core::IdeError::unavailable("project has no Subversion working copy"))?;
+        svn.cleanup()
+    })
+    .await
+}
+
 /// Schedules deletion of `paths` (`svn delete`).
 pub async fn vcs_svn_delete(host: &Host, window: &str, paths: Vec<PathBuf>) -> IdeResult<()> {
     host.require_trust(window)?;
@@ -1513,6 +1552,8 @@ pub(crate) fn register(d: &mut Dispatcher) {
     });
     d.add("vcs_svn_add", |c| async move { vcs_svn_add(&c.host, &c.window, c.arg("paths")?).await });
     d.add("vcs_svn_delete", |c| async move { vcs_svn_delete(&c.host, &c.window, c.arg("paths")?).await });
+    d.add("vcs_svn_ignore", |c| async move { vcs_svn_ignore(&c.host, &c.window, c.arg("paths")?).await });
+    d.add("vcs_svn_cleanup", |c| async move { vcs_svn_cleanup(&c.host, &c.window, c.arg("repo")?).await });
     d.add("vcs_svn_revert", |c| async move { vcs_svn_revert(&c.host, &c.window, c.arg("paths")?).await });
     d.add("vcs_branch_info", |c| async move { vcs_branch_info(&c.host, &c.window, c.arg("repo")?).await });
     d.add("vcs_line_hunks", |c| async move { vcs_line_hunks(&c.host, &c.window, c.arg("path")?).await });
