@@ -886,6 +886,7 @@ function FilterBar() {
       },
     ]);
 
+  const svnLog = useVcs((s) => vcsKind(s.repo ?? s.roots[0] ?? null) === "svn");
   const logFilters: LogFilter[] = [
     ...(repositories.length > 1
       ? [
@@ -905,12 +906,17 @@ function FilterBar() {
           },
         ]
       : []),
-    {
-      label: "Branch",
-      value: filters.range || filters.branches.join(", ") || null,
-      onOpen: (anchor: HTMLElement) => setBranchAnchor((open) => (open === anchor ? null : anchor)),
-      onClear: () => setLogBranches([]),
-    },
+    // A working copy has no branches to filter by.
+    ...(svnLog
+      ? []
+      : [
+          {
+            label: "Branch",
+            value: filters.range || filters.branches.join(", ") || null,
+            onOpen: (anchor: HTMLElement) => setBranchAnchor((open) => (open === anchor ? null : anchor)),
+            onClear: () => setLogBranches([]),
+          },
+        ]),
     {
       label: "User",
       value: filters.authors.join(", ") || null,
