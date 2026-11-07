@@ -541,8 +541,11 @@ export function registerVcsActions(): () => void {
           notifications().notify({ group: "vcs", level: "info", title: tx`No local changes for the selection` });
           return;
         }
+        // One preview tab per changed file (as the Git action does for several
+        // paths), chained so F7 walks the selection.
         const items = inside.map((f) => svnDiffData(f.path, effectiveKind(f)));
-        await openDiff(withChain(items, 0), { preview: true });
+        if (items.length === 1) await openDiff(withChain(items, 0), { preview: true });
+        else for (let i = 0; i < items.length && i < 5; i++) await openDiff(items[i]!, { preview: false });
       },
     },
     {
