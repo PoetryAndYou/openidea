@@ -70,6 +70,7 @@ import { hasFileHistory, showCurrentRevision, trackFileHistory } from "./fileRev
 import { compareWithFileRevision } from "./FileRevisionChooser";
 import { call, commands } from "@/platform/ipc";
 import { promptInput } from "@/workbench/inputDialogs";
+import { ask } from "@/workbench/messages";
 
 const VCS = "vcsAvailable";
 const IN_COMMIT_WINDOW = "vcsAvailable && activeToolWindow == commit";
@@ -662,7 +663,7 @@ export function registerVcsActions(): () => void {
         if (!revision?.trim()) return;
         const result = await call(commands.vcsSvnUpdateTo(currentRepo(), revision.trim()));
         await refreshNow();
-        notifications().notify({ group: "vcs", level: "info", title: tx`Updated to ${result.revision}` });
+        notifications().notify({ group: "vcs", level: "info", title: `${tx("Updated to")} ${result.revision}` });
       },
     },
     {
@@ -768,9 +769,26 @@ export function registerVcsActions(): () => void {
       when: VCS,
       keywords: ["svn revert", "rollback"],
       run: async ({ arg }) => {
-        const paths = argPaths(arg) ?? useCommit.getState().selection;
-        if (!paths?.length) return;
-        await call(commands.vcsSvnRevert(paths));
+        const explicit = argPaths(arg);
+        const paths = explicit?.length ? explicit : useCommit.getState().selection;
+        const changed = useVcs
+          .getState()
+          .status.filter((f) => !paths?.length || paths.some((p) => f.path === p || f.path.startsWith(`${p}/`)));
+        if (!changed.length) {
+          notifications().notify({ group: "vcs", level: "info", title: tx`No local changes to revert` });
+          return;
+        }
+        // Destructive: confirm the paths, like the Git rollback dialog does.
+        const answer = await ask({
+          title: tx("Revert Local Changes"),
+          body: `${tx("Discard local changes in the following files")}:\n${
+            changed.slice(0, 10).map((f) => f.relPath).join("\n") + (changed.length > 10 ? "\n…" : "")
+          }`,
+          buttons: [{ id: "ok", label: tx("Revert"), primary: true }],
+          width: 460,
+        });
+        if (answer.button !== "ok") return;
+        await call(commands.vcsSvnRevert(changed.map((f) => f.path)));
         await refreshNow();
       },
     },
