@@ -12,7 +12,7 @@ import { workflowSettings } from "@/platform/workflowSettings";
 import { ask } from "@/workbench/messages";
 import { effectiveKind, relTo, stripSlash } from "./model";
 import { runOp } from "./ops";
-import { refreshNow, useVcs } from "./store";
+import { currentRepoRoot, refreshNow, useVcs, vcsKind } from "./store";
 import { createUnityMetadataStaging } from "./unityMetadata";
 
 /** Status paths affected by `paths` (a deleted folder covers its content). */
@@ -43,6 +43,7 @@ export async function rememberSetting(key: string, value: unknown) {
 async function confirmFiles(op: FileOperation["kind"], files: string[]): Promise<{ ok: boolean; remember: boolean }> {
   const root = useVcs.getState().root ?? "";
   const add = op === "created";
+  const vcsName = vcsKind(currentRepoRoot()) === "svn" ? "Subversion" : "Git";
   const n = files.length;
   const list = files
     .slice(0, 10)
@@ -50,13 +51,13 @@ async function confirmFiles(op: FileOperation["kind"], files: string[]): Promise
     .join("\n");
   const question = add
     ? n === 1
-      ? tx("Do you want to add the following file to Git?")
-      : tx`Do you want to add the following ${n} files to Git?`
+      ? tx`Do you want to add the following file to ${vcsName}?`
+      : tx`Do you want to add the following ${n} files to ${vcsName}?`
     : n === 1
-      ? tx("Do you want to remove the following file from Git?")
-      : tx`Do you want to remove the following ${n} files from Git?`;
+      ? tx`Do you want to remove the following file from ${vcsName}?`
+      : tx`Do you want to remove the following ${n} files from ${vcsName}?`;
   const r = await ask({
-    title: add ? "Add File to Git" : "Remove File from Git",
+    title: add ? tx`Add File to ${vcsName}` : tx`Remove File from ${vcsName}`,
     body: `${question}\n${list}${n > 10 ? "\n…" : ""}`,
     checkbox: "Don't ask again",
     width: 480,
@@ -91,16 +92,19 @@ async function handle(op: FileOperation, metadata: ReturnType<typeof createUnity
   const stageFiles = await addition.beforeStage(files);
   if (!addition.current() || !stageFiles.length) return;
   const n = stageFiles.length;
+  const svn = vcsKind(currentRepoRoot()) === "svn";
+  const vcsName = svn ? "Subversion" : "Git";
   const ok = await runOp(
     op.kind === "created"
       ? n === 1
-        ? tx("Add 1 file to Git")
-        : tx`Add ${n} files to Git`
+        ? tx`Add 1 file to ${vcsName}`
+        : tx`Add ${n} files to ${vcsName}`
       : n === 1
-        ? tx("Remove 1 file from Git")
-        : tx`Remove ${n} files from Git`,
+        ? tx`Remove 1 file from ${vcsName}`
+        : tx`Remove ${n} files from ${vcsName}`,
     async () => {
-      await call(commands.vcsStage(stageFiles));
+      if (svn) await call(op.kind === "created" ? commands.vcsSvnAdd(stageFiles) : commands.vcsSvnDelete(stageFiles));
+      else await call(commands.vcsStage(stageFiles));
       return true;
     },
   );

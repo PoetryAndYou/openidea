@@ -1478,6 +1478,19 @@ pub async fn vcs_svn_add(host: &Host, window: &str, paths: Vec<PathBuf>) -> IdeR
     .await
 }
 
+/// Schedules deletion of `paths` (`svn delete`).
+pub async fn vcs_svn_delete(host: &Host, window: &str, paths: Vec<PathBuf>) -> IdeResult<()> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        for (repo, paths) in group_svn_paths(&project, &paths) {
+            repo.delete(&paths)?;
+        }
+        Ok(())
+    })
+    .await
+}
+
 /// Reverts working changes of `paths` (`svn revert`).
 pub async fn vcs_svn_revert(host: &Host, window: &str, paths: Vec<PathBuf>) -> IdeResult<()> {
     host.require_trust(window)?;
@@ -1499,6 +1512,7 @@ pub(crate) fn register(d: &mut Dispatcher) {
         vcs_svn_commit(&c.host, &c.window, c.arg("repo")?, c.arg("paths")?, c.arg("message")?).await
     });
     d.add("vcs_svn_add", |c| async move { vcs_svn_add(&c.host, &c.window, c.arg("paths")?).await });
+    d.add("vcs_svn_delete", |c| async move { vcs_svn_delete(&c.host, &c.window, c.arg("paths")?).await });
     d.add("vcs_svn_revert", |c| async move { vcs_svn_revert(&c.host, &c.window, c.arg("paths")?).await });
     d.add("vcs_branch_info", |c| async move { vcs_branch_info(&c.host, &c.window, c.arg("repo")?).await });
     d.add("vcs_line_hunks", |c| async move { vcs_line_hunks(&c.host, &c.window, c.arg("path")?).await });

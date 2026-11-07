@@ -224,7 +224,20 @@ impl SvnRepo {
         self.run(&args).map(|_| ())
     }
 
+    /// Schedules deletion (`svn delete --force`). The files may already be gone
+    /// from disk (the IDE deleted them), so `--force` is always passed.
+    pub fn delete(&self, paths: &[PathBuf]) -> IdeResult<()> {
+        if paths.is_empty() {
+            return Ok(());
+        }
+        let mut args = vec!["delete", "--force"];
+        let targets: Vec<String> = paths.iter().map(|path| path.to_string_lossy().into_owned()).collect();
+        args.extend(targets.iter().map(String::as_str));
+        self.run(&args).map(|_| ())
+    }
+
     /// Reverts `paths` to their BASE content and schedule.
+
     pub fn revert(&self, paths: &[PathBuf]) -> IdeResult<()> {
         if paths.is_empty() {
             return Ok(());

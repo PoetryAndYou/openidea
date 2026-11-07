@@ -928,3 +928,10 @@ pub async fn vcs_svn_add(window: Window, state: State<'_, AppState>, paths: Vec<
 pub async fn vcs_svn_revert(window: Window, state: State<'_, AppState>, paths: Vec<PathBuf>) -> IdeResult<()> {
     ide_host::ops::vcs::vcs_svn_revert(&state.host, window.label(), paths).await
 }
+
+/// Schedules paths for deletion (`svn delete`).
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_delete(window: Window, state: State<'_, AppState>, paths: Vec<PathBuf>) -> IdeResult<()> {
+    ide_host::ops::vcs::vcs_svn_delete(&state.host, window.label(), paths).await
+}

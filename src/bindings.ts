@@ -502,6 +502,8 @@ export const commands = {
 	vcsSvnCommit: (repo: string | null, paths: string[], message: string) => typedError<string, IdeError>(__TAURI_INVOKE("vcs_svn_commit", { repo, paths, message })),
 	/**  Schedules paths for addition (`svn add`). */
 	vcsSvnAdd: (paths: string[]) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_add", { paths })),
+	/**  Schedules paths for deletion (`svn delete`). */
+	vcsSvnDelete: (paths: string[]) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_delete", { paths })),
 	/**  Reverts working changes of paths (`svn revert`). */
 	vcsSvnRevert: (paths: string[]) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_revert", { paths })),
 	vcsBranchInfo: (repo: string | null) => typedError<BranchInfo, IdeError>(__TAURI_INVOKE("vcs_branch_info", { repo })),
