@@ -28,6 +28,8 @@ import { setAmend, useCommit } from "./commitStore";
 import { gotoConflict, resolveAtCaret, showConflictsDialog } from "./conflictsUi";
 import { focusedDiffNavigator } from "./diffNavigator";
 import { openDiff, withChain, workingDiffData } from "./diffInput";
+import { effectiveKind } from "./model";
+import { svnDiffData } from "./SvnCommitView";
 import { buildChangeTree, changeGroupPaths } from "./changes";
 import { useChangelists } from "./changelists";
 import { openDialog } from "./dialogs";
@@ -521,6 +523,28 @@ export function registerVcsActions(): () => void {
       keywords: ["ignore", "unversioned", "exclude"],
       run: ({ arg }) => addToIgnore(contextPaths(arg), destination),
     })),
+    {
+      id: "vcs.svnShowDiff",
+      title: "Show Diff",
+      category: "Subversion",
+      icon: "diff",
+      when: VCS,
+      keywords: ["svn diff", "compare"],
+      run: async ({ arg }) => {
+        const picked = contextPaths(arg);
+        if (!picked.length) return;
+        const status = useVcs.getState().status;
+        const inside = status.filter((f) =>
+          picked.some((p) => f.path === p || f.path.startsWith(`${p.replace(/\/$/, "")}/`)),
+        );
+        if (!inside.length) {
+          notifications().notify({ group: "vcs", level: "info", title: tx`No local changes for the selection` });
+          return;
+        }
+        const items = inside.map((f) => svnDiffData(f.path, effectiveKind(f)));
+        await openDiff(withChain(items, 0), { preview: true });
+      },
+    },
     {
       id: "vcs.svnAdd",
       title: "Add to Subversion",
