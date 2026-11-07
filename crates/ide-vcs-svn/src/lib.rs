@@ -359,7 +359,9 @@ impl SvnRepo {
         if paths.is_empty() {
             return Ok(());
         }
-        let mut args = vec!["revert"];
+        // Depth infinity: a scheduled add of a folder (`.idea`) cannot be reverted
+        // without its children (E155038).
+        let mut args = vec!["revert", "--depth", "infinity"];
         let targets: Vec<String> = paths.iter().map(|path| path.to_string_lossy().into_owned()).collect();
         args.extend(targets.iter().map(String::as_str));
         self.run(&args).map(|_| ())
