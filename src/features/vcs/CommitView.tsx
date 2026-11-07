@@ -127,19 +127,21 @@ export function useStashTabCounts(available: boolean) {
 /** "Commit" / "Shelf" / "Stash" content tabs; they stand in for the tool window title. */
 export function CommitTabs() {
   const available = useVcs((s) => s.available);
+  // A working copy has no stash: an SVN project shows the Commit tab alone.
+  const svn = useVcs((s) => vcsKind(s.repo ?? s.roots[0] ?? null) === "svn");
   const combine = useWorkflowSettings((s) => s.vcs.git.combineStashAndShelf);
   const tab = useCommit((s) => s.tab);
-  const counts = useStashTabCounts(available);
+  const counts = useStashTabCounts(available && !svn);
   return (
     <Tabs
       variant="compact"
       className={styles.tabs}
-      activeId={stashTabOf(tab, combine)}
+      activeId={svn ? "changes" : stashTabOf(tab, combine)}
       onSelect={(id) => useCommit.setState({ tab: id as CommitTab })}
       aria-label="Commit"
       items={tabItems([
         { id: "changes", label: "Commit" },
-        ...(available ? stashTabs({ combine, tab, ...counts }) : []),
+        ...(available && !svn ? stashTabs({ combine, tab, ...counts }) : []),
       ])}
     />
   );
