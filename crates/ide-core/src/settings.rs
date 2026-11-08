@@ -1258,6 +1258,10 @@ pub struct JavaSettings {
     pub jdtls_vm_args: String,
     /// Share one JDT LS across builds in an ordinary project window; other windows remain separate.
     pub jdtls_shared: bool,
+    /// Import a folder that is both a Gradle build and an Eclipse project (a
+    /// `.classpath` next to the build script) through its Eclipse classpath;
+    /// only the remaining Gradle builds are imported by Gradle.
+    pub eclipse_classpath_first: bool,
     /// Build Tools › Maven.
     pub maven: MavenSettings,
     /// Build Tools › Gradle.

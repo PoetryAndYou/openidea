@@ -205,6 +205,7 @@ export interface LanguagesValid {
     jdtlsJdk: string;
     jdtlsVmArgs: string;
     jdtlsShared: boolean;
+    eclipseClasspathFirst: boolean;
     gradle: {
       linkedProjects: string[] | null;
       jvm: string;
@@ -298,6 +299,7 @@ export const DEFAULT_LANGUAGES: LanguagesValid = {
     jdtlsJdk: "",
     jdtlsVmArgs: "",
     jdtlsShared: false,
+    eclipseClasspathFirst: false,
     gradle: { linkedProjects: null, jvm: "", distribution: "wrapper", home: "", userHome: "", runUsing: "gradle" },
     maven: {
       runnerJre: "",
@@ -465,6 +467,7 @@ export function validateLanguages(raw: unknown): LanguagesValid {
       jdtlsJdk: text(java.jdtlsJdk, d.java.jdtlsJdk),
       jdtlsVmArgs: text(java.jdtlsVmArgs, d.java.jdtlsVmArgs),
       jdtlsShared: bool(java.jdtlsShared, d.java.jdtlsShared),
+      eclipseClasspathFirst: java.eclipseClasspathFirst === true,
       gradle: {
         linkedProjects: Array.isArray(gradle.linkedProjects)
           ? gradle.linkedProjects.filter((p): p is string => typeof p === "string")

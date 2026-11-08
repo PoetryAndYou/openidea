@@ -412,6 +412,7 @@ export function JavaPage() {
     "Runs jdtls only; the project keeps its Project JDK. When empty, a suitable installed JDK is used first, otherwise Eclipse Temurin is downloaded automatically into a separate language-server folder. The jdtls executable itself is set in Language Servers.",
     jdtlsJdk ?? "",
   );
+  const [eclipseFirst, setEclipseFirst] = useSetting<boolean>("languages.java.eclipseClasspathFirst");
   const id = useId();
   return (
     <div className={styles.page}>
@@ -477,6 +478,14 @@ export function JavaPage() {
             onChange={(e) => setVmArgs(e.target.value)}
           />
         </Row>
+      </Section>
+      <Section title="Import">
+        <Toggle
+          label="Prefer Eclipse .classpath"
+          checked={eclipseFirst}
+          onChange={setEclipseFirst}
+          hint="Imports a folder that is both a Gradle build and an Eclipse project (a .classpath next to build.gradle) through its Eclipse classpath; only the remaining Gradle builds are imported by Gradle. For Eclipse workspaces whose Gradle files are stale. Applies on the next Java server start."
+        />
       </Section>
     </div>
   );
