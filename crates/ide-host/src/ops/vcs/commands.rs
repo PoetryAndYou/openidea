@@ -37,6 +37,11 @@ fn group_svn_paths(project: &Project, paths: &[PathBuf]) -> Vec<(std::sync::Arc<
     groups
 }
 
+/// The numeric part of a Subversion revision id (`r12` → 12), for merging logs.
+fn svn_rev_number(id: &str) -> u64 {
+    id.trim_start_matches('r').parse().unwrap_or(0)
+}
+
 /// Read-only repository access also works in a standalone log window.
 struct LogAccess {
     project: Option<std::sync::Arc<Project>>,
@@ -323,7 +328,13 @@ pub fn vcs_roots(host: &Host, window: &str) -> IdeResult<Vec<VcsRoot>> {
             Ok(info) => (info.head, info.head_commit),
             Err(_) => (None, None),
         };
-        out.push(VcsRoot { root: r.root().to_path_buf().into(), operation: None, head, head_commit, kind: "svn".into() });
+        out.push(VcsRoot {
+            root: r.root().to_path_buf().into(),
+            operation: None,
+            head,
+            head_commit,
+            kind: "svn".into(),
+        });
     }
     Ok(out)
 }
@@ -427,6 +438,32 @@ pub async fn vcs_block_history(
 pub async fn vcs_log(host: &Host, window: &str, repo: Option<PathBuf>, query: LogQuery) -> IdeResult<Vec<Commit>> {
     let project = LogAccess::new(host, window, repo.as_deref());
     if let Some(p) = project.project.clone() {
+        // Without a repository filter every working copy answers and the results
+        // merge: the copies can be subtrees of one repository, so one atomic
+        // commit arrives once per URL.
+        if repo.is_none() && svn_target(&p, None).is_some() {
+            let svns = p.svn_repos();
+            if !svns.is_empty() {
+                let q = query.clone();
+                return blocking(move || {
+                    let mut merged: Vec<Commit> = Vec::new();
+                    for svn in svns.all() {
+                        let mut per = q.clone();
+                        per.skip = 0;
+                        per.limit = 0;
+                        merged.extend(svn.log(&per)?);
+                    }
+                    merged.sort_by_key(|commit| std::cmp::Reverse(svn_rev_number(&commit.id)));
+                    merged.dedup_by(|a, b| a.id == b.id);
+                    let mut out = merged.into_iter().skip(query.skip as usize).collect::<Vec<_>>();
+                    if query.limit > 0 {
+                        out.truncate(query.limit as usize);
+                    }
+                    Ok(out)
+                })
+                .await;
+            }
+        }
         if let Some(svn) = svn_target(&p, repo.as_deref()) {
             let q = query.clone();
             return blocking(move || svn.log(&q)).await;
@@ -577,7 +614,20 @@ pub async fn vcs_commit_files(
     let project = LogAccess::new(host, window, repo.as_deref());
     if let Some(p) = project.project.clone() {
         if let Some(svn) = svn_target(&p, repo.as_deref()) {
-            return blocking(move || svn.commit_files(&commit)).await;
+            return blocking(move || {
+                let mut files = svn.commit_files(&commit)?;
+                // Repository paths (`/projA/src/Main.java`) become project paths,
+                // whatever working copy the log entry was served from.
+                let svns = p.svn_repos();
+                for file in &mut files {
+                    file.path = svns.project_path(&p.root, &file.path);
+                    if file.old_path.is_some() {
+                        file.old_path = file.old_path.take().map(|old| svns.project_path(&p.root, &old));
+                    }
+                }
+                Ok(files)
+            })
+            .await;
         }
     }
     blocking(move || project.with_log_repo_at(repo.as_deref(), |r| r.commit_files(&commit))).await
@@ -1442,11 +1492,7 @@ pub async fn vcs_svn_info(host: &Host, window: &str, repo: Option<PathBuf>) -> I
 
 /// `svn update`: brings the working copy to HEAD; local changes are kept and
 /// conflicts left in the tree (`--accept postpone`).
-pub async fn vcs_svn_update(
-    host: &Host,
-    window: &str,
-    repo: Option<PathBuf>,
-) -> IdeResult<ide_vcs_svn::UpdateSummary> {
+pub async fn vcs_svn_update(host: &Host, window: &str, repo: Option<PathBuf>) -> IdeResult<ide_vcs_svn::UpdateSummary> {
     host.require_trust(window)?;
     let project = host.project(window)?;
     blocking(move || {
