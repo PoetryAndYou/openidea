@@ -366,6 +366,15 @@ pub async fn vcs_line_hunks(host: &Host, window: &str, path: PathBuf) -> IdeResu
 }
 
 pub async fn vcs_file_at(host: &Host, window: &str, path: PathBuf, rev: Option<String>) -> IdeResult<Option<String>> {
+    // Log diff paths arrive relative to the project; a working copy below the
+    // root answers only once they point at a real file.
+    let path = if path.is_absolute() {
+        path
+    } else if let Ok(project) = host.project(window) {
+        project.root.join(path)
+    } else {
+        path
+    };
     if let Ok(project) = host.project(window) {
         let svns = project.svn_repos();
         if let Some(svn) = svns.for_path(&path).cloned() {
