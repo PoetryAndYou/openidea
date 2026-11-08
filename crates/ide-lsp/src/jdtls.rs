@@ -340,10 +340,27 @@ impl LspManager {
                 return;
             }
             let root = mgr.project_root.clone();
+            let content_roots = mgr.content_roots.read().clone();
             let java_project = tokio::task::spawn_blocking(move || {
-                ["pom.xml", "build.gradle", "build.gradle.kts", ".classpath"]
-                    .iter()
-                    .any(|name| root.join(name).is_file())
+                // A project is Java when its root declares it, or when an Eclipse
+                // workspace keeps its projects (`.project`/`.classpath`) in folders
+                // below the root or inside a content root.
+                let declares = |root: &Path| {
+                    ["pom.xml", "build.gradle", "build.gradle.kts", ".classpath"]
+                        .iter()
+                        .any(|name| root.join(name).is_file())
+                };
+                let child_declares = |root: &Path| {
+                    std::fs::read_dir(root).ok().into_iter().flatten().flatten().any(|entry| {
+                        entry.file_type().is_ok_and(|t| t.is_dir())
+                            && ["pom.xml", "build.gradle", "build.gradle.kts", ".classpath", ".project"]
+                                .iter()
+                                .any(|name| entry.path().join(name).is_file())
+                    })
+                };
+                declares(&root)
+                    || child_declares(&root)
+                    || content_roots.iter().any(|r| declares(r) || child_declares(r))
             })
             .await
             .unwrap_or(false);

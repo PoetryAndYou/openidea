@@ -3,7 +3,7 @@
 //! The tests are skipped (with a note on stderr) when `svn` and `svnadmin` are not installed.
 
 use ide_vcs::{ChangeKind, FileStatus, HunkKind, LineHunk, LogQuery};
-use ide_vcs_svn::SvnRepo;
+use ide_vcs_svn::{SvnRepo, SvnRepos};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
@@ -241,4 +241,49 @@ fn add_schedules_unversioned_paths() {
     assert_eq!(added.path, ide_core::IpcPath::from(path));
     // `--parents` schedules the folders that did not exist in the repository.
     assert_eq!(fixture.status_of(&status, "deep/a").staged, Some(ChangeKind::Added));
+}
+
+/// An Eclipse-style workspace: the parent folder is not a working copy, every
+/// project folder below it is. Opening the parent must find each project.
+#[test]
+fn workspace_discovery_finds_one_working_copy_per_project_folder() {
+    if !available() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let base = dunce::canonicalize(dir.path()).unwrap();
+    let repository = base.join("repo");
+    run("svnadmin", &["create", repository.to_str().unwrap()], &base);
+
+    // Seed two projects and check each out into the workspace, the way Eclipse
+    // checks projects out side by side, one `.svn` per project.
+    let seed = base.join("seed");
+    let workspace = base.join("ws");
+    std::fs::create_dir_all(&workspace).unwrap();
+    let mut expected: Vec<String> = Vec::new();
+    for name in ["projA", "projB", "skipped"] {
+        let project = seed.join(name);
+        write(&project.join(".project"), &format!("<projectDescription><name>{name}</name></projectDescription>\n"));
+        write(&project.join("src/Main.java"), "class Main {}\n");
+        let url = format!("file://{}/{}", repository.display(), name);
+        run("svn", &["import", "-q", project.to_str().unwrap(), &url, "-m", "import"], &base);
+        let checkout = workspace.join(name);
+        run("svn", &["checkout", "-q", &url, checkout.to_str().unwrap()], &base);
+        expected.push(checkout.display().to_string());
+    }
+
+    // The parent folder itself is not a working copy.
+    assert!(SvnRepo::discover(&workspace).unwrap().is_none());
+
+    // `discover_roots` over the workspace finds every project, including under
+    // folders the skip closure rejects are left out.
+    let repos = SvnRepos::discover_roots(&[workspace.clone()], &|p: &Path| p.ends_with("skipped")).unwrap();
+    let mut roots: Vec<String> = repos.roots().iter().map(|p| p.display().to_string()).collect();
+    roots.sort();
+    expected.sort();
+    assert_eq!(roots, expected[..2].to_vec(), "the rejected folder is not a root");
+
+    // The plain `discover` walk finds them too (an opened workspace root).
+    let repos = SvnRepos::discover(&workspace, &|p: &Path| p.ends_with("skipped")).unwrap();
+    assert_eq!(repos.all().len(), 2);
 }

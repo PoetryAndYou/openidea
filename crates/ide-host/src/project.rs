@@ -305,7 +305,25 @@ impl Host {
         );
         documents.add_observer(phpstan.clone());
         let repos = Arc::new(RwLock::new(Repos::enclosing(&root)?));
-        let svn_repos = Arc::new(RwLock::new(SvnRepos::enclosing(&root)));
+        // Working copies at or above the root, under every content root (workspace
+        // members), and nested ones below each root — an Eclipse workspace keeps one
+        // working copy per project folder, like the Git scan in `scan_repositories`.
+        let mut svn_roots = vec![root.clone()];
+        svn_roots.extend(extra_roots.iter().cloned());
+        let ignored = settings.effective().ignored_names();
+        let svn_skip = |p: &Path| {
+            p.file_name().is_some_and(|n| {
+                let name = n.to_string_lossy();
+                ignored.is_ignored_name(&name)
+            })
+        };
+        let svn_repos = Arc::new(RwLock::new(match SvnRepos::discover_roots(&svn_roots, &svn_skip) {
+            Ok(found) => found,
+            Err(e) => {
+                tracing::warn!("looking for svn working copies: {e}");
+                SvnRepos::enclosing(&root)
+            }
+        }));
         for repo in repos.read().all() {
             repo.set_execution_allowed(trusted.load(Ordering::Acquire));
         }
@@ -792,9 +810,39 @@ fn scan_repositories(
     }
 }
 
+/// The SVN counterpart of [`scan_repositories`]: working copies at or above the
+/// root, under every content root (workspace members), and nested below them.
+fn scan_svn_repositories(
+    root: &Path,
+    svns: &RwLock<SvnRepos>,
+    settings: &SettingsStore,
+    sink: &SharedSink,
+    build_cache: &Path,
+) {
+    let ignored = settings.effective().ignored_names();
+    let skip = |p: &Path| {
+        p.file_name().is_some_and(|n| {
+            let name = n.to_string_lossy();
+            ignored.is_ignored_name(&name)
+        })
+    };
+    let mut roots = vec![root.to_path_buf()];
+    roots.extend(content_roots(&settings.effective(), root, build_cache));
+    match SvnRepos::discover_roots(&roots, &skip) {
+        Ok(found) => {
+            if found.roots() != svns.read().roots() {
+                *svns.write() = found;
+                sink.emit(IdeEvent::VcsChanged { root: root.to_path_buf().into() });
+            }
+        }
+        Err(e) => tracing::warn!("looking for svn working copies: {e}"),
+    }
+}
+
 impl Project {
     pub fn refresh_repositories(&self) {
         scan_repositories(&self.root, &self.repos, &self.settings, &self.sink, &self.build_cache_dir());
+        scan_svn_repositories(&self.root, &self.svn_repos, &self.settings, &self.sink, &self.build_cache_dir());
     }
 
     /// The project's git repositories.
