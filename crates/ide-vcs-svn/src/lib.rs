@@ -63,6 +63,9 @@ pub struct UpdateSummary {
 pub struct SvnRepo {
     root: PathBuf,
     svn: Option<PathBuf>,
+    /// The last `svn info`: URL, UUID and revision answer for every path mapping
+    /// and branch identity, so those do not spawn a process each.
+    info: std::sync::Mutex<Option<SvnInfo>>,
 }
 
 impl SvnRepo {
@@ -74,7 +77,7 @@ impl SvnRepo {
         let mut dir = Some(dunce::simplified(&start));
         while let Some(current) = dir {
             if current.join(".svn").is_dir() {
-                return Ok(Some(Self { root: current.to_path_buf(), svn: detect_svn() }));
+                return Ok(Some(Self { root: current.to_path_buf(), svn: detect_svn(), info: Default::default() }));
             }
             dir = current.parent();
         }
@@ -92,9 +95,20 @@ impl SvnRepo {
         self.svn.is_some()
     }
 
-    /// `svn info --xml` of the working-copy root.
+    /// `svn info --xml` of the working-copy root, cached until an operation that
+    /// can move the working copy's revision (`update`, `commit`) clears it.
     pub fn info(&self) -> IdeResult<SvnInfo> {
-        parse_info(&self.run(&["info", "--xml"])?)
+        if let Some(hit) = self.info.lock().unwrap().clone() {
+            return Ok(hit);
+        }
+        let fresh = parse_info(&self.run(&["info", "--xml"])?)?;
+        *self.info.lock().unwrap() = Some(fresh.clone());
+        Ok(fresh)
+    }
+
+    /// Drops the cached [`SvnInfo`]; call after `update`/`commit` moved the revision.
+    fn invalidate_info(&self) {
+        *self.info.lock().unwrap() = None;
     }
 
     /// The branch-shaped identity of the working copy: its URL path and revision.
@@ -229,12 +243,14 @@ impl SvnRepo {
         args.extend(paths.iter().map(|path| path.to_string_lossy().into_owned()));
         let args: Vec<&str> = args.iter().map(String::as_str).collect();
         let out = self.run(&args)?;
+        self.invalidate_info();
         rev_from(&out).ok_or_else(|| IdeError::internal("svn: commit reported no revision"))
     }
 
     /// Updates the working copy to HEAD, postponing conflicts, and reports its new revision.
     pub fn update(&self) -> IdeResult<UpdateSummary> {
         let output = self.run(&["update", "--accept", "postpone"])?.trim().to_string();
+        self.invalidate_info();
         Ok(UpdateSummary { revision: rev_from(&output).unwrap_or_default(), output })
     }
 
@@ -304,6 +320,7 @@ impl SvnRepo {
     pub fn update_to(&self, revision: &str) -> IdeResult<UpdateSummary> {
         let rev = normalize_rev(revision);
         let out = self.run(&["update", "-r", &rev, "--accept", "postpone"])?;
+        self.invalidate_info();
         Ok(UpdateSummary { revision: rev_from(&out).unwrap_or_else(|| format!("r{rev}")), output: out })
     }
 
@@ -402,13 +419,19 @@ impl SvnRepo {
     /// Runs `svn <args>` in the working-copy root, whatever the exit status; a missing or
     /// unusable executable is [`IdeError::unavailable`].
     fn output(&self, args: &[&str]) -> IdeResult<Output> {
+        use std::process::Stdio as _;
         let exe = self.svn.as_ref().ok_or_else(|| IdeError::unavailable("svn command-line client not found"))?;
-        Command::new(exe)
-            .arg("--non-interactive")
-            .args(args)
-            .current_dir(&self.root)
-            .output()
-            .map_err(|_| IdeError::unavailable("svn command-line client not found"))
+        let mut command = Command::new(exe);
+        command.arg("--non-interactive").args(args).current_dir(&self.root);
+        // A GUI process spawning a console executable would flash a console
+        // window per call otherwise.
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt as _;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            command.creation_flags(CREATE_NO_WINDOW);
+        }
+        command.output().map_err(|_| IdeError::unavailable("svn command-line client not found"))
     }
 
     /// Runs svn and returns stdout; a non-zero exit is an error carrying svn's stderr.
@@ -436,8 +459,9 @@ pub fn configured_svn() -> Option<std::path::PathBuf> {
 }
 
 /// The `svn` client: `PATH` first, then the usual install locations. A GUI app
-/// started from the Dock inherits a minimal `PATH` (`/usr/bin:/bin:/usr/sbin:/sbin`),
-/// so Homebrew's and MacPorts' prefixes are probed by name.
+/// started from the Dock or the Start menu inherits a minimal `PATH`
+/// (`/usr/bin:/bin:/usr/sbin:/sbin`), so Homebrew's and MacPorts' prefixes are
+/// probed by name; on Windows, TortoiseSVN's and SlikSVN's.
 fn detect_svn() -> Option<std::path::PathBuf> {
     if let Some(configured) = configured_svn() {
         return Some(configured);
@@ -445,10 +469,17 @@ fn detect_svn() -> Option<std::path::PathBuf> {
     if let Ok(path) = which::which("svn") {
         return Some(path);
     }
-    ["/opt/homebrew/bin/svn", "/usr/local/bin/svn", "/opt/local/bin/svn", "/usr/bin/svn"]
-        .iter()
-        .map(std::path::PathBuf::from)
-        .find(|p| p.is_file())
+    let known = if cfg!(windows) {
+        [
+            r"C:\Program Files\TortoiseSVN\bin\svn.exe",
+            r"C:\Program Files (x86)\TortoiseSVN\bin\svn.exe",
+            r"C:\Program Files\SlikSvn\bin\svn.exe",
+            r"C:\Program Files (x86)\SlikSvn\bin\svn.exe",
+        ]
+    } else {
+        ["/opt/homebrew/bin/svn", "/usr/local/bin/svn", "/opt/local/bin/svn", "/usr/bin/svn"]
+    };
+    known.iter().map(std::path::PathBuf::from).find(|p| p.is_file())
 }
 
 /// The working copies of a project: the one containing the project root plus the checkouts
