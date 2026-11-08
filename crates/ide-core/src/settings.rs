@@ -857,6 +857,10 @@ pub struct JavaSettings {
     /// Extra JVM options for the Java language server (jdtls), space-separated
     /// (VS Code's `java.jdt.ls.vmargs`).
     pub jdtls_vm_args: String,
+    /// Import a folder that is both a Gradle build and an Eclipse project (a
+    /// `.classpath` next to the build script) through its Eclipse classpath;
+    /// only the remaining Gradle builds are imported by Gradle.
+    pub eclipse_classpath_first: bool,
     /// Build Tools › Maven.
     pub maven: MavenSettings,
     /// Build Tools › Gradle.

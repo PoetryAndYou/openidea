@@ -4885,6 +4885,12 @@ export type JavaSettings = {
 	 *  (VS Code's `java.jdt.ls.vmargs`).
 	 */
 	jdtlsVmArgs?: string,
+	/**
+	 *  Import a folder that is both a Gradle build and an Eclipse project (a
+	 *  `.classpath` next to the build script) through its Eclipse classpath;
+	 *  only the remaining Gradle builds are imported by Gradle.
+	 */
+	eclipseClasspathFirst?: boolean,
 	/**  Build Tools › Maven. */
 	maven?: MavenSettings,
 	/**  Build Tools › Gradle. */

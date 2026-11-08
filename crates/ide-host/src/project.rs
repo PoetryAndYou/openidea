@@ -234,13 +234,9 @@ impl Host {
                 // After the overrides: the PHP version they may set decides the storage.
                 ide_sdk::php::configure_intelephense_storage(cfg, &data_dir);
                 if cfg.name == "jdtls" {
-                    let (excluded_poms, build_files) = jdtls_maven_import(root, &effective);
+                    let (excluded_poms, build_files, gradle_linked) = jdtls_maven_import(root, &effective);
                     ide_sdk::apply::configure_maven_import(cfg, root, &excluded_poms, build_files.as_deref());
-                    ide_sdk::apply::configure_gradle_import(
-                        cfg,
-                        effective.languages.java.gradle.linked_projects.as_deref(),
-                        build_files.as_deref(),
-                    );
+                    ide_sdk::apply::configure_gradle_import(cfg, gradle_linked.as_deref(), build_files.as_deref());
                 }
             }));
         }
@@ -1307,23 +1303,45 @@ pub(crate) fn unlinked_maven_poms(root: &Path, settings: &ide_core::settings::Se
     ide_build::maven::UnlinkedProjects::load(root, &settings.languages.java.maven).poms().map(PathBuf::from).collect()
 }
 
-/// The unlinked Maven POMs jdtls leaves out, and the build files (`file:` URIs) it is to
+/// The unlinked Maven POMs jdtls leaves out, the build files (`file:` URIs) it is to
 /// import when that takes more than exclusions: an unlinked module of a linked reactor.
 /// Those then include the Gradle build, which jdtls would otherwise find by itself.
+/// Third: the Gradle builds Gradle import covers, resolved — automatic discovery,
+/// the linked list, or with "Eclipse classpath first" the builds that are not also
+/// Eclipse projects.
 pub(crate) fn jdtls_maven_import(
     root: &Path,
     settings: &ide_core::settings::Settings,
-) -> (Vec<PathBuf>, Option<Vec<String>>) {
-    let maven = &settings.languages.java.maven;
-    let gradle = &settings.languages.java.gradle;
-    if maven.unlinked_projects.is_empty() && gradle.linked_projects.is_none() {
-        return (Vec::new(), None);
+) -> (Vec<PathBuf>, Option<Vec<String>>, Option<Vec<String>>) {
+    let java = &settings.languages.java;
+    let maven = &java.maven;
+    let gradle = &java.gradle;
+    // Eclipse-first: a Gradle build that is also an Eclipse project imports through
+    // its `.classpath`, so Gradle import becomes explicit and covers the rest only.
+    let eclipse_first = java.eclipse_classpath_first;
+    let is_mixed = |dir: &str| {
+        let dir = root.join(dir);
+        dir.join(".classpath").is_file() || dir.join(".project").is_file()
+    };
+    let gradle_linked = if eclipse_first {
+        Some(
+            ide_build::gradle::load_linked(root, gradle)
+                .into_iter()
+                .map(|g| g.dir)
+                .filter(|dir| !is_mixed(dir))
+                .collect(),
+        )
+    } else {
+        gradle.linked_projects.clone()
+    };
+    if maven.unlinked_projects.is_empty() && gradle_linked.is_none() {
+        return (Vec::new(), None, None);
     }
     let model = ide_build::maven::load_linked(root, maven);
     let unlinked = ide_build::maven::UnlinkedProjects::from_model(&model, maven);
     let excluded = unlinked.poms().map(PathBuf::from).collect();
     let poms = unlinked.import_poms(&model).or_else(|| {
-        gradle.linked_projects.as_ref().map(|_| {
+        gradle_linked.as_ref().map(|_| {
             model
                 .projects
                 .iter()
@@ -1333,13 +1351,20 @@ pub(crate) fn jdtls_maven_import(
         })
     });
     let build_files = poms.map(|poms| {
-        let gradle = ide_build::gradle::load_linked(root, gradle).into_iter().filter_map(|g| {
-            let dir = root.join(&g.dir);
-            let names = ide_build::gradle::SETTINGS_FILES.iter().chain(ide_build::gradle::BUILD_FILES);
-            names.map(|n| dir.join(n)).find(|f| f.is_file())
-        });
-        let eclipse = if settings.languages.java.gradle.linked_projects.is_some() {
-            independent_eclipse_projects(root)
+        let gradle = ide_build::gradle::load_linked(root, gradle)
+            .into_iter()
+            .filter(|g| !eclipse_first || !is_mixed(&g.dir))
+            .filter_map(|g| {
+                let dir = root.join(&g.dir);
+                let names = ide_build::gradle::SETTINGS_FILES.iter().chain(ide_build::gradle::BUILD_FILES);
+                names.map(|n| dir.join(n)).find(|f| f.is_file())
+            });
+        let eclipse = if gradle_linked.is_some() {
+            let mut projects = independent_eclipse_projects(root);
+            if eclipse_first {
+                projects.extend(mixed_eclipse_projects(root));
+            }
+            projects
         } else {
             Vec::new()
         };
@@ -1350,7 +1375,7 @@ pub(crate) fn jdtls_maven_import(
             .map(|f| ide_lsp::path_to_uri_string(&f))
             .collect()
     });
-    (excluded, build_files)
+    (excluded, build_files, gradle_linked)
 }
 
 /// Explicit Gradle imports must retain Eclipse projects without re-importing generated build metadata.
@@ -1385,6 +1410,42 @@ fn independent_eclipse_projects(root: &Path) -> Vec<PathBuf> {
         .build();
     let mut projects: Vec<_> =
         walker.flatten().map(|entry| entry.path().join(".project")).filter(|path| path.is_file()).collect();
+    projects.sort();
+    projects
+}
+
+/// Eclipse projects that are also Gradle builds (a `.classpath` next to the build
+/// script). With "Eclipse classpath first" Gradle no longer claims them, so they are
+/// listed for the importer like the independent ones.
+fn mixed_eclipse_projects(root: &Path) -> Vec<PathBuf> {
+    let walker = ignore::WalkBuilder::new(root)
+        .standard_filters(false)
+        .filter_entry(|entry| {
+            if !entry.file_type().is_some_and(|kind| kind.is_dir()) {
+                return false;
+            }
+            !(entry.depth() > 0
+                && (entry.file_name().to_string_lossy().starts_with('.')
+                    || matches!(
+                        entry.file_name().to_str(),
+                        Some("node_modules" | "target" | "build" | "dist" | "out" | "bin" | "vendor")
+                    )
+                    || entry.path().parent().is_some_and(|parent| parent.join(".project").is_file())))
+        })
+        .build();
+    let mut projects: Vec<_> = walker
+        .flatten()
+        .map(|entry| entry.path().to_path_buf())
+        .filter(|dir| {
+            ide_build::gradle::SETTINGS_FILES
+                .iter()
+                .chain(ide_build::gradle::BUILD_FILES)
+                .any(|name| dir.join(name).is_file())
+                && (dir.join(".classpath").is_file() || dir.join(".project").is_file())
+        })
+        .map(|dir| dir.join(".project"))
+        .filter(|path| path.is_file())
+        .collect();
     projects.sort();
     projects
 }
@@ -1587,7 +1648,7 @@ mod maven_linkage_tests {
         std::fs::write(root.join("maven/pom.xml"), "<project/>").unwrap();
         let mut settings = ide_core::settings::Settings::default();
         settings.languages.java.gradle.linked_projects = Some(vec!["linked".into()]);
-        let (_, files) = super::jdtls_maven_import(root, &settings);
+        let (_, files, _) = super::jdtls_maven_import(root, &settings);
         let files = files.unwrap();
         let uri = |path: &str| ide_lsp::path_to_uri_string(&root.join(path));
         assert!(files.contains(&uri("linked/settings.gradle")));
@@ -1598,8 +1659,31 @@ mod maven_linkage_tests {
         assert!(!files.contains(&uri("linked/.project")));
         assert!(!files.contains(&uri("maven/.project")));
         settings.languages.java.gradle.linked_projects = Some(vec![]);
-        let (_, files) = super::jdtls_maven_import(root, &settings);
+        let (_, files, _) = super::jdtls_maven_import(root, &settings);
         assert_eq!(files.unwrap(), [uri("maven/pom.xml"), uri("eclipse/.project"), uri("nested/eclipse/.project")]);
+    }
+
+    #[test]
+    fn eclipse_classpath_first_imports_mixed_folders_through_eclipse() {
+        let tmp = tempfile::tempdir().unwrap();
+        let root = tmp.path();
+        // "mixed" is a Gradle build that is also an Eclipse project; "pure" is Gradle only.
+        for dir in ["mixed", "pure"] {
+            std::fs::create_dir_all(root.join(dir)).unwrap();
+            std::fs::write(root.join(dir).join("build.gradle"), "").unwrap();
+        }
+        std::fs::write(root.join("mixed").join(".classpath"), "").unwrap();
+        std::fs::write(root.join("mixed").join(".project"), "<projectDescription/>").unwrap();
+        let mut settings = ide_core::settings::Settings::default();
+        assert_eq!(super::jdtls_maven_import(root, &settings), (Vec::new(), None, None));
+        settings.languages.java.eclipse_classpath_first = true;
+        let (_, files, gradle_linked) = super::jdtls_maven_import(root, &settings);
+        assert_eq!(gradle_linked.unwrap(), ["pure".to_owned()]);
+        let uri = |path: &str| ide_lsp::path_to_uri_string(&root.join(path));
+        let files = files.unwrap();
+        assert!(files.contains(&uri("pure/build.gradle")));
+        assert!(files.contains(&uri("mixed/.project")));
+        assert!(!files.contains(&uri("mixed/build.gradle")));
     }
 
     #[test]
@@ -1612,9 +1696,9 @@ mod maven_linkage_tests {
         }
         std::fs::write(root.join("settings.gradle"), "rootProject.name = 'g'").unwrap();
         let mut settings = ide_core::settings::Settings::default();
-        assert_eq!(super::jdtls_maven_import(root, &settings), (Vec::new(), None));
+        assert_eq!(super::jdtls_maven_import(root, &settings), (Vec::new(), None, None));
         settings.languages.java.maven.unlinked_projects.push("y/pom.xml".into());
-        let (excluded, files) = super::jdtls_maven_import(root, &settings);
+        let (excluded, files, _) = super::jdtls_maven_import(root, &settings);
         assert_eq!(excluded, vec![std::path::PathBuf::from("y/pom.xml")]);
         let uri = |f: &str| ide_lsp::path_to_uri_string(&root.join(f));
         assert_eq!(files, Some(vec![uri("x/pom.xml"), uri("settings.gradle")]));

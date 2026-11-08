@@ -111,6 +111,7 @@ export interface LanguagesValid {
     jdk: string;
     jdtlsJdk: string;
     jdtlsVmArgs: string;
+    eclipseClasspathFirst: boolean;
     gradle: {
       linkedProjects: string[] | null;
       jvm: string;
@@ -174,6 +175,7 @@ export const DEFAULT_LANGUAGES: LanguagesValid = {
     jdk: "",
     jdtlsJdk: "",
     jdtlsVmArgs: "",
+    eclipseClasspathFirst: false,
     gradle: { linkedProjects: null, jvm: "", distribution: "wrapper", home: "", userHome: "", runUsing: "gradle" },
     maven: {
       home: "",
@@ -316,6 +318,7 @@ export function validateLanguages(raw: unknown): LanguagesValid {
       jdk: text(java.jdk, d.java.jdk),
       jdtlsJdk: text(java.jdtlsJdk, d.java.jdtlsJdk),
       jdtlsVmArgs: text(java.jdtlsVmArgs, d.java.jdtlsVmArgs),
+      eclipseClasspathFirst: java.eclipseClasspathFirst === true,
       gradle: {
         linkedProjects: Array.isArray(gradle.linkedProjects)
           ? gradle.linkedProjects.filter((p): p is string => typeof p === "string")

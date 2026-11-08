@@ -1657,6 +1657,8 @@
   "Project GOPATH": "项目 GOPATH",
   "Project, Structure, Commit and other tool window trees indent less per level": "项目、结构、提交等工具窗口树的每层缩进更小",
   "Project JDK": "项目 JDK",
+  "Prefer Eclipse .classpath": "优先 Eclipse 类路径",
+  "Imports a folder that is both a Gradle build and an Eclipse project (a .classpath next to build.gradle) through its Eclipse classpath; only the remaining Gradle builds are imported by Gradle. For Eclipse workspaces whose Gradle files are stale. Applies on the next Java server start.": "同时是 Gradle 构建和 Eclipse 项目的目录（build.gradle 旁边有 .classpath）改用 Eclipse 类路径导入；其余 Gradle 构建仍由 Gradle 导入。适用于 Gradle 文件已荒废的 Eclipse 工作空间。下次 Java 服务器启动时生效。",
   "Project Production Files": "项目生产文件",
   "Project Settings": "项目设置",
   "Project Structure": "项目结构",
