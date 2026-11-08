@@ -287,3 +287,42 @@ fn workspace_discovery_finds_one_working_copy_per_project_folder() {
     let repos = SvnRepos::discover(&workspace, &|p: &Path| p.ends_with("skipped")).unwrap();
     assert_eq!(repos.all().len(), 2);
 }
+
+/// Repository paths map to project-relative paths through the working copies,
+/// and the merged status prefixes each copy's subtree.
+#[test]
+fn workspace_paths_are_project_relative() {
+    if !available() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let base = dunce::canonicalize(dir.path()).unwrap();
+    let repository = base.join("repo");
+    run("svnadmin", &["create", repository.to_str().unwrap()], &base);
+    let workspace = base.join("ws");
+    std::fs::create_dir_all(&workspace).unwrap();
+    for name in ["projA", "projB"] {
+        let project = base.join("seed").join(name);
+        write(&project.join("src/Main.java"), "class Main {}\n");
+        let url = format!("file://{}/{}", repository.display(), name);
+        run("svn", &["import", "-q", project.to_str().unwrap(), &url, "-m", "import"], &base);
+        run("svn", &["checkout", "-q", &url, workspace.join(name).to_str().unwrap()], &base);
+    }
+    let repos = SvnRepos::discover(&workspace, &|_: &Path| false).unwrap();
+
+    // A commit of one project can touch the other's files (one atomic commit of
+    // two working copies of a repository): both map below their own folder.
+    assert_eq!(repos.project_path(&workspace, "/projA/src/Main.java"), "projA/src/Main.java");
+    assert_eq!(repos.project_path(&workspace, "/projB/src/Main.java"), "projB/src/Main.java");
+    // The root of a working copy itself, and a path outside every copy.
+    assert_eq!(repos.project_path(&workspace, "/projB"), "projB");
+    assert_eq!(repos.project_path(&workspace, "/other/x.txt"), "other/x.txt");
+
+    // The merged status reports every copy's changes below its folder.
+    write(&workspace.join("projA/src/Main.java"), "class MainA2 {}\n");
+    write(&workspace.join("projB/src/Main.java"), "class MainB2 {}\n");
+    let status = repos.status_under(&workspace).unwrap();
+    let mut rels: Vec<String> = status.iter().map(|entry| entry.rel_path.clone()).collect();
+    rels.sort();
+    assert_eq!(rels, vec!["projA/src/Main.java", "projB/src/Main.java"]);
+}

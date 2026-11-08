@@ -23,7 +23,7 @@ pub async fn status(host: &Host, window: &str) -> IdeResult<Vec<FileStatus>> {
         }
         let svns = project.svn_repos();
         if !svns.is_empty() {
-            return svns.status();
+            return svns.status_under(&project.root);
         }
         Err(ide_core::IdeError::unavailable("project has no version control"))
     })

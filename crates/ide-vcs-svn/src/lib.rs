@@ -185,13 +185,14 @@ impl SvnRepo {
         Ok(commits.into_iter().skip(query.skip as usize).take(limit as usize).collect())
     }
 
-    /// The files changed by one revision, relative to the working copy's branch.
+    /// The files changed by one revision, as repository-absolute paths
+    /// (`/projB/src/Main.java`): one atomic commit may touch files of several
+    /// working copies of the same repository, so the caller maps them into the
+    /// project through [`SvnRepos::project_paths`].
     pub fn commit_files(&self, revision: &str) -> IdeResult<Vec<ChangedFile>> {
         let rev = normalize_rev(revision);
         let xml = self.run(&["log", "--xml", "-v", "-r", &rev])?;
-        let info = self.info()?;
-        let base = info.relative_url.trim_start_matches("^/").trim_matches('/');
-        parse_changed_files(&xml, base)
+        parse_changed_files(&xml, "")
     }
 
     /// The message of one revision. Subversion has unsigned commits only.
@@ -374,6 +375,17 @@ impl SvnRepo {
         Some(if rel.is_empty() { base.to_string() } else { format!("{base}/{}", rel.trim_start_matches('/')) })
     }
 
+    /// The part of a repository path (`/projB/src/Main.java`) that lies inside
+    /// this working copy: the path past its own repository prefix. `None` when
+    /// the path is outside (`/projA/…` seen from a checkout of `…/projB`).
+    pub fn wc_suffix(&self, repo_path: &str) -> Option<String> {
+        let info = self.info().ok()?;
+        let base = info.relative_url.trim_start_matches("^/").trim_matches('/');
+        let prefix = if base.is_empty() { String::new() } else { format!("/{base}") };
+        let suffix = repo_path.strip_prefix(&prefix)?.trim_start_matches('/');
+        Some(suffix.to_string())
+    }
+
     /// The URL `svn log` is run against for a working-copy path.
     fn log_target(&self, path: Option<&Path>) -> String {
         let Some(path) = path else {
@@ -537,6 +549,48 @@ impl SvnRepos {
         }
         let root = dunce::canonicalize(root).ok()?;
         self.repos.iter().find(|repo| dunce::canonicalize(repo.root()).is_ok_and(|own| own == root))
+    }
+
+    /// The changed paths of every working copy, relative to `project_root`: each
+    /// working copy contributes the subtree below its own root.
+    pub fn status_under(&self, project_root: &Path) -> IdeResult<Vec<FileStatus>> {
+        let mut out = Vec::new();
+        for repo in &self.repos {
+            let base = repo.root().strip_prefix(project_root).unwrap_or(repo.root());
+            let base = base.to_string_lossy().trim_matches('/').to_string();
+            for mut entry in repo.status()? {
+                if !base.is_empty() {
+                    entry.rel_path = format!("{base}/{}", entry.rel_path);
+                }
+                out.push(entry);
+            }
+        }
+        Ok(out)
+    }
+
+    /// Maps repository-absolute paths (`/projB/src/Main.java`) to paths relative
+    /// to `project_root` through the discovered working copies: one atomic commit
+    /// may touch files of several working copies of the same repository.
+    pub fn project_paths(&self, project_root: &Path, repo_paths: &[String]) -> Vec<String> {
+        repo_paths.iter().map(|path| self.project_path(project_root, path)).collect()
+    }
+
+    /// The single-path form of [`Self::project_paths`].
+    pub fn project_path(&self, project_root: &Path, repo_path: &str) -> String {
+        for repo in &self.repos {
+            if let Some(suffix) = repo.wc_suffix(repo_path) {
+                let base = repo.root().strip_prefix(project_root).unwrap_or(repo.root());
+                let owned = base.to_string_lossy().into_owned();
+                let base = owned.trim_matches('/');
+                return match (base.is_empty(), suffix.is_empty()) {
+                    (true, true) => String::new(),
+                    (true, false) => suffix,
+                    (false, true) => base.to_string(),
+                    (false, false) => format!("{base}/{suffix}"),
+                };
+            }
+        }
+        repo_path.trim_start_matches('/').to_string()
     }
 
     /// The status of every working copy, one entry per changed path.
