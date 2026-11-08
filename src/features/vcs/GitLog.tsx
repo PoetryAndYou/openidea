@@ -1181,10 +1181,15 @@ export function commitMenu(c: Commit, selection: Commit[] = [c]): MenuItem[] {
     ];
   const many = selection.length > 1 && selection.some((x) => commitKey(x) === commitKey(c));
   const repo = commitRepo(c);
+  const svn = vcsKind(repo ?? undefined) === "svn";
   const vcs = useVcs.getState();
   const head = (repo ? vcs.heads[repo]?.head : vcs.branch?.head) ?? null;
   const { outgoing } = useGitLog.getState();
   if (many) {
+    // A Subversion log has no branch machinery: the revisions themselves are the useful bit.
+    if (svn) {
+      return [{ kind: "action", action: "vcs.log.copyRevision", arg: selection, label: "Copy Revision Numbers" }];
+    }
     return [
       { kind: "action", action: "vcs.log.copyRevision", arg: selection, label: "Copy Revision Numbers" },
       { kind: "action", action: "vcs.log.createPatch", arg: selection },
@@ -1221,6 +1226,17 @@ export function commitMenu(c: Commit, selection: Commit[] = [c]): MenuItem[] {
       label: tx`Rebase '${head ?? "HEAD"}' onto Selected Commit`,
       disabled: !head,
     });
+  if (svn) {
+    return [
+      { kind: "action", action: "vcs.log.copyRevision", arg: c },
+      {
+        label: useGitLog.getState().bookmarks[commitKey(c)] ? "Remove Commit Bookmark" : "Bookmark Commit",
+        run: () => toggleCommitBookmark(c),
+      },
+      { label: "Copy Commit Message", run: () => copyCommitMessage(c) },
+      { label: "Browse Repository at Revision", run: () => browseRepositoryAt(c) },
+    ];
+  }
   return [
     { kind: "action", action: "vcs.log.copyRevision", arg: c },
     {

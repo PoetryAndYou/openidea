@@ -6,7 +6,7 @@ import { editorService, type EditorInput } from "@/workbench/contributions";
 import { baseName, effectiveKind } from "./model";
 import { readWorkingText } from "./ops";
 import { changeFileNodes, groupFileNodes, renamedFromPath, stagingSide, type ChangeNode } from "./changes";
-import { currentRepoRoot, statusOf } from "./store";
+import { currentRepoRoot, statusOf, vcsKind } from "./store";
 import { repositoryPath } from "./repositoryPaths";
 
 export type DiffSide =
@@ -225,8 +225,11 @@ export function workingDiffData(path: string, line?: number, side?: "staged" | "
   return { path, left, right, line };
 }
 
-/** A path of the selected repository's log (repository-relative) made absolute. */
+/** A path of the selected repository's log (repository-relative) made absolute.
+ * Subversion serves log paths relative to the project root already — one project
+ * can hold several working copies — so only Git paths get the repository root. */
 function joinRoot(rel: string, root = currentRepoRoot()): string {
+  if (vcsKind(root) === "svn") return rel;
   return repositoryPath(root, rel);
 }
 
