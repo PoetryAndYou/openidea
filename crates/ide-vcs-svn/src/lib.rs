@@ -237,6 +237,24 @@ impl SvnRepo {
         Ok(Some(String::from_utf8_lossy(&out.stdout).into_owned()))
     }
 
+    /// The text of a repository-absolute path (`/branches/x/src/A.java`) at `rev`,
+    /// read from the repository by URL — for paths of a revision that lie outside
+    /// this working copy's checkout (history before a move, or a commit that
+    /// touched another project).
+    pub fn file_at_repo_path(&self, repo_path: &str, rev: Option<&str>) -> IdeResult<Option<String>> {
+        let rev = normalize_rev(rev.unwrap_or(""));
+        let root = self.info().ok().and_then(|info| {
+            let root = info.repo_root.trim_end_matches('/');
+            (!root.is_empty()).then(|| format!("{root}{}", repo_path))
+        });
+        let Some(target) = root else { return Ok(None) };
+        let out = self.output(&["cat", "-r", &rev, &target])?;
+        if !out.status.success() {
+            return Ok(None);
+        }
+        Ok(Some(String::from_utf8_lossy(&out.stdout).into_owned()))
+    }
+
     /// Commits `paths` (the whole working copy when empty) and returns the new revision, `rN`.
     pub fn commit(&self, paths: &[PathBuf], message: &str) -> IdeResult<String> {
         let mut args = vec!["commit".to_string(), "-m".to_string(), message.to_string()];

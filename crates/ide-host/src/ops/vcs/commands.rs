@@ -42,6 +42,16 @@ fn svn_rev_number(id: &str) -> u64 {
     id.trim_start_matches('r').parse().unwrap_or(0)
 }
 
+/// `path` without `base`'s prefix, slash-separated — for repository URLs.
+fn path_difference(base: &Path, path: &Path) -> String {
+    path.strip_prefix(base)
+        .unwrap_or(path)
+        .components()
+        .map(|component| component.as_os_str().to_string_lossy().into_owned())
+        .collect::<Vec<_>>()
+        .join("/")
+}
+
 /// Read-only repository access also works in a standalone log window.
 struct LogAccess {
     project: Option<std::sync::Arc<Project>>,
@@ -318,18 +328,16 @@ pub fn vcs_roots(host: &Host, window: &str) -> IdeResult<Vec<VcsRoot>> {
             }
         })
         .collect();
-    // Subversion working copies, primary first.
-    let svns = project.svn_repos();
-    let svn_primary = svns.all().first().map(|r| r.root().to_path_buf());
-    let mut svn_roots: Vec<&std::sync::Arc<SvnRepo>> = svns.all().iter().collect();
-    svn_roots.sort_by_key(|r| Some(r.root()) != svn_primary.as_deref());
-    for r in svn_roots {
-        let (head, head_commit) = match r.branch_info() {
+    // Subversion working copies of a project are subtrees of one linear history:
+    // shown as one root (the primary copy), or the log draws a parallel lane per
+    // copy and the same revision appears once per working copy that saw it.
+    if let Some(primary) = project.svn_repos().all().first() {
+        let (head, head_commit) = match primary.branch_info() {
             Ok(info) => (info.head, info.head_commit),
             Err(_) => (None, None),
         };
         out.push(VcsRoot {
-            root: r.root().to_path_buf().into(),
+            root: primary.root().to_path_buf().into(),
             operation: None,
             head,
             head_commit,
@@ -368,10 +376,11 @@ pub async fn vcs_line_hunks(host: &Host, window: &str, path: PathBuf) -> IdeResu
 pub async fn vcs_file_at(host: &Host, window: &str, path: PathBuf, rev: Option<String>) -> IdeResult<Option<String>> {
     // Log diff paths arrive relative to the project; a working copy below the
     // root answers only once they point at a real file.
+    let relative = !path.is_absolute();
     let path = if path.is_absolute() {
         path
     } else if let Ok(project) = host.project(window) {
-        project.root.join(path)
+        project.root.join(&path)
     } else {
         path
     };
@@ -379,6 +388,16 @@ pub async fn vcs_file_at(host: &Host, window: &str, path: PathBuf, rev: Option<S
         let svns = project.svn_repos();
         if let Some(svn) = svns.for_path(&path).cloned() {
             return blocking(move || svn.file_at(&path, rev.as_deref())).await;
+        }
+        // A Subversion revision's paths may lie outside every working copy (a
+        // commit that touched another project, or history from before a move):
+        // read them from the repository by URL instead of failing over to Git.
+        if !svns.is_empty() && relative {
+            let repo_path = format!("/{}", path_difference(&project.root, &path));
+            let svn = svns.all().first().cloned();
+            if let Some(svn) = svn {
+                return blocking(move || svn.file_at_repo_path(&repo_path, rev.as_deref())).await;
+            }
         }
     }
     let project = host.project(window).ok();
@@ -447,35 +466,30 @@ pub async fn vcs_block_history(
 pub async fn vcs_log(host: &Host, window: &str, repo: Option<PathBuf>, query: LogQuery) -> IdeResult<Vec<Commit>> {
     let project = LogAccess::new(host, window, repo.as_deref());
     if let Some(p) = project.project.clone() {
-        // Without a repository filter every working copy answers and the results
-        // merge: the copies can be subtrees of one repository, so one atomic
-        // commit arrives once per URL.
-        if repo.is_none() && svn_target(&p, None).is_some() {
+        // A Subversion project serves one linear history whatever working copy is
+        // named: every copy answers and the results merge (the copies can be
+        // subtrees of one repository, so one atomic commit arrives once per URL).
+        if !p.svn_repos().is_empty() {
             let svns = p.svn_repos();
-            if !svns.is_empty() {
-                let q = query.clone();
-                return blocking(move || {
-                    let mut merged: Vec<Commit> = Vec::new();
-                    for svn in svns.all() {
-                        let mut per = q.clone();
-                        per.skip = 0;
-                        per.limit = 0;
-                        merged.extend(svn.log(&per)?);
-                    }
-                    merged.sort_by_key(|commit| std::cmp::Reverse(svn_rev_number(&commit.id)));
-                    merged.dedup_by(|a, b| a.id == b.id);
-                    let mut out = merged.into_iter().skip(query.skip as usize).collect::<Vec<_>>();
-                    if query.limit > 0 {
-                        out.truncate(query.limit as usize);
-                    }
-                    Ok(out)
-                })
-                .await;
-            }
-        }
-        if let Some(svn) = svn_target(&p, repo.as_deref()) {
             let q = query.clone();
-            return blocking(move || svn.log(&q)).await;
+            return blocking(move || {
+                let mut merged: Vec<Commit> = Vec::new();
+                for svn in svns.all() {
+                    let mut per = q.clone();
+                    per.skip = 0;
+                    per.limit = 0;
+                    merged.extend(svn.log(&per)?);
+                }
+                merged.sort_by_key(|commit| std::cmp::Reverse(svn_rev_number(&commit.id)));
+                let mut seen = std::collections::HashSet::new();
+                merged.retain(|commit| seen.insert(commit.id.clone()));
+                let mut out = merged.into_iter().skip(query.skip as usize).collect::<Vec<_>>();
+                if query.limit > 0 {
+                    out.truncate(query.limit as usize);
+                }
+                Ok(out)
+            })
+            .await;
         }
     }
     let request = query.request;

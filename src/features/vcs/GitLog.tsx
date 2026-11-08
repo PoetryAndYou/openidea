@@ -1274,6 +1274,8 @@ function CommitList() {
   const speedTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   useEffect(() => () => clearTimeout(speedTimer.current), []);
   const columns = useMemo(() => {
+    // A Subversion revision is the commit's identity: the column is on by default.
+    const svn = vcsKind() === "svn";
     const builtins: LogColumn[] = [
       ...(opts.showAuthor ? [{ id: "author", title: "Author", width: 130, render: (c: Commit) => c.author }] : []),
       ...(opts.showDate
@@ -1286,7 +1288,9 @@ function CommitList() {
             },
           ]
         : []),
-      ...(opts.showHash ? [{ id: "hash", title: "Hash", width: 72, render: (c: Commit) => c.shortId }] : []),
+      ...(opts.showHash || svn
+        ? [{ id: "hash", title: svn ? "Revision" : "Hash", width: svn ? 84 : 72, render: (c: Commit) => c.shortId }]
+        : []),
       ...(opts.showSignature
         ? [{ id: "signature", title: "Signature", width: 100, render: (c: Commit) => <CommitSignature commit={c} /> }]
         : []),
@@ -1315,6 +1319,8 @@ function CommitList() {
     opts.commitTimestamp,
     opts.columnOrder,
     ChecksCell,
+    // vcsKind() is read directly; recompute when the roots reload.
+    useVcs.getState().roots,
   ]);
   const user = useGitLog((s) => s.user);
   const headCommit = useVcs((s) => s.branch?.headCommit ?? null);
