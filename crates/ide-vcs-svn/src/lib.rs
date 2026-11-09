@@ -205,9 +205,11 @@ impl SvnRepo {
     /// project through [`SvnRepos::project_paths`].
     pub fn commit_files(&self, revision: &str) -> IdeResult<Vec<ChangedFile>> {
         let rev = normalize_rev(revision);
-        // Against the working copy's URL: a mixed-revision working copy cannot
-        // serve revisions newer than its root's peg from the path itself.
-        let target = self.url_of("").ok_or_else(|| IdeError::unavailable("svn working copy has no URL"))?;
+        // Against the repository root: a mixed-revision working copy cannot serve
+        // revisions newer than its peg from a path, and a working-copy URL would
+        // report only the paths below itself — a revision that touched another
+        // project of the repository would list nothing.
+        let target = self.repo_root_url()?;
         let xml = self.run(&["log", "--xml", "-v", "-r", &rev, &target])?;
         parse_changed_files(&xml, "")
     }
@@ -215,7 +217,7 @@ impl SvnRepo {
     /// The message of one revision. Subversion has unsigned commits only.
     pub fn log_details(&self, revision: &str) -> IdeResult<LogDetails> {
         let rev = normalize_rev(revision);
-        let target = self.url_of("").unwrap_or_else(|| self.root.to_string_lossy().into_owned());
+        let target = self.repo_root_url()?;
         let xml = self.run(&["log", "--xml", "-r", &rev, &target])?;
         let doc = Document::parse(&xml).map_err(xml_error)?;
         let message =
@@ -423,6 +425,15 @@ impl SvnRepo {
         let prefix = if base.is_empty() { String::new() } else { format!("/{base}") };
         let suffix = repo_path.strip_prefix(&prefix)?.trim_start_matches('/');
         Some(suffix.to_string())
+    }
+
+    /// The repository root URL, for revision-wide queries (a working-copy URL
+    /// sees only its own subtree's history).
+    fn repo_root_url(&self) -> IdeResult<String> {
+        let root = self.info()?.repo_root.trim_end_matches('/').to_string();
+        (!root.is_empty())
+            .then_some(root)
+            .ok_or_else(|| IdeError::unavailable("svn working copy has no repository root URL"))
     }
 
     /// The URL `svn log` is run against for a working-copy path.
