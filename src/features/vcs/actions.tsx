@@ -503,8 +503,11 @@ export function registerVcsActions(): () => void {
       run: ({ arg }) => {
         const path = contextPaths(arg)[0];
         if (!path) return;
-        openLogTab("history", path);
+        // Show the window first: raising it afterwards resets the tool window
+        // to its remembered tab, hiding the history tab this just opened (and
+        // re-focusing its search box).
         showGitWindow();
+        openLogTab("history", path);
       },
     },
     {
