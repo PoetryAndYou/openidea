@@ -11,16 +11,16 @@ import { call, commands } from "@/platform/ipc";
 import { openDialog } from "./dialogs";
 import styles from "./SvnMessageDialog.module.css";
 
-export function showSvnMessage(revision: string, message: string, repo: string | null, onSaved: () => void) {
+export function showSvnMessage(revision: string, message: string, repo: string | null, onSaved: (text: string) => void) {
   openDialog((close) => (
     <SvnMessageDialog
       revision={revision}
       message={message}
       repo={repo}
       onClose={close}
-      onSaved={() => {
+      onSaved={(text) => {
         close();
-        onSaved();
+        onSaved(text);
       }}
     />
   ));
@@ -37,7 +37,7 @@ function SvnMessageDialog({
   message: string;
   repo: string | null;
   onClose: () => void;
-  onSaved: () => void;
+  onSaved: (text: string) => void;
 }) {
   const [text, setText] = useState(message);
   const [error, setError] = useState<string | null>(null);
@@ -48,7 +48,7 @@ function SvnMessageDialog({
     setError(null);
     try {
       await call(commands.vcsSvnSetMessage(repo, revision, text));
-      onSaved();
+      onSaved(text);
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);
       // The usual refusal: the repository has no pre-revprop-change hook.
