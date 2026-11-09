@@ -205,14 +205,18 @@ impl SvnRepo {
     /// project through [`SvnRepos::project_paths`].
     pub fn commit_files(&self, revision: &str) -> IdeResult<Vec<ChangedFile>> {
         let rev = normalize_rev(revision);
-        let xml = self.run(&["log", "--xml", "-v", "-r", &rev])?;
+        // Against the working copy's URL: a mixed-revision working copy cannot
+        // serve revisions newer than its root's peg from the path itself.
+        let target = self.url_of("").ok_or_else(|| IdeError::unavailable("svn working copy has no URL"))?;
+        let xml = self.run(&["log", "--xml", "-v", "-r", &rev, &target])?;
         parse_changed_files(&xml, "")
     }
 
     /// The message of one revision. Subversion has unsigned commits only.
     pub fn log_details(&self, revision: &str) -> IdeResult<LogDetails> {
         let rev = normalize_rev(revision);
-        let xml = self.run(&["log", "--xml", "-r", &rev])?;
+        let target = self.url_of("").unwrap_or_else(|| self.root.to_string_lossy().into_owned());
+        let xml = self.run(&["log", "--xml", "-r", &rev, &target])?;
         let doc = Document::parse(&xml).map_err(xml_error)?;
         let message =
             doc.descendants().find(|node| node.has_tag_name("logentry")).map(|entry| child_text(&entry, "msg"));
