@@ -132,13 +132,17 @@ export function SvnCommitView() {
     void openDiff(withChain(items, Math.max(0, rows.indexOf(r))), { preview: true });
   };
 
-  const run = async (label: string, f: () => Promise<unknown>) => {
+  /** Runs an operation; `reset` starts a fresh selection afterwards (a commit
+   * consumed it). Revert and add keep the boxes the way they were set. */
+  const run = async (label: string, reset: boolean, f: () => Promise<unknown>) => {
     setBusy(label);
     setError(null);
     try {
       await f();
-      setChecked({});
-      setMessage("");
+      if (reset) {
+        setChecked({});
+        setMessage("");
+      }
       scheduleRefresh(50);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -176,7 +180,7 @@ export function SvnCommitView() {
         ? rows.filter((row) => selectedFiles.has(row.path))
         : [r];
     showSvnRevert(targets.map((row) => row.src), (paths) =>
-      run("revert", () => call(commands.vcsSvnRevert(paths))),
+      run("revert", false, () => call(commands.vcsSvnRevert(paths))),
     );
   };
 
@@ -208,7 +212,7 @@ export function SvnCommitView() {
               className={styles.link}
               onClick={(e) => {
                 e.stopPropagation();
-                void run("add", () => call(commands.vcsSvnAdd([r.path])));
+                void run("add", false, () => call(commands.vcsSvnAdd([r.path])));
               }}
             >
               {tx("Add")}
@@ -344,14 +348,14 @@ export function SvnCommitView() {
         <button
           className={styles.btn}
           disabled={!message.trim() || selected.length === 0 || busy !== null}
-          onClick={() => void run("commit", () => call(commands.vcsSvnCommit(repo, selected, message)))}
+          onClick={() => void run("commit", true, () => call(commands.vcsSvnCommit(repo, selected, message)))}
         >
           {busy === "commit" ? "…" : tx("Commit")}
         </button>
         <button
           className={styles.ghost}
           disabled={busy !== null}
-          onClick={() => void run("update", () => call(commands.vcsSvnUpdate(repo)))}
+          onClick={() => void run("update", false, () => call(commands.vcsSvnUpdate(repo)))}
         >
           {busy === "update" ? "…" : tx("Update")}
         </button>
