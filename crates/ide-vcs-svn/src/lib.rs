@@ -809,7 +809,10 @@ fn parse_log(xml: &str) -> IdeResult<Vec<Commit>> {
                 id: revision.clone(),
                 short_id: revision,
                 parents,
-                graph_parents: None,
+                // No graph edges: the history of the checked-out projects skips
+                // revisions that touched other projects, and an edge per gap drew
+                // a lane each (IDEA shows the Subversion log as a flat list too).
+                graph_parents: Some(Vec::new()),
                 graph_dashed: Vec::new(),
                 history_path: None,
                 log_position: None,
