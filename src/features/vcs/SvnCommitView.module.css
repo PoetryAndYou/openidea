@@ -220,31 +220,18 @@
   font-size: 12px;
 }
 
-/* A workspace section: one project (working copy) and its changes. */
-.project {
-  display: flex;
-  flex-direction: column;
-}
-
-.projectHeader {
-  padding-inline-start: 0;
-  font-weight: 600;
-}
-
-.project .group .header {
-  padding-inline-start: var(--tree-indent, 16px);
-}
-
-/* A project section nested inside Changes / Unversioned Files. */
+/* A project section nested inside Changes / Unversioned Files: one tree level
+   below the group header, its files one level below that (24px per level, like
+   .row.fileRow above — not tied to the tree-indent setting). */
 .project {
   display: flex;
   flex-direction: column;
 }
 
 .project .header {
-  padding-inline-start: calc(var(--tree-indent, 16px) - 8px);
+  padding-left: 28px;
 }
 
 .project .fileRow {
-  padding-inline-start: calc(var(--tree-indent, 16px) * 2 - 8px);
+  padding-left: 52px;
 }
