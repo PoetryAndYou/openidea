@@ -2709,7 +2709,7 @@ function CommitMessage({ commit, compact = false }: { commit: Commit; compact?: 
           ))}
         </div>
       )}
-      {details && (
+      {details && vcsKind(repo) !== "svn" && (
         <>
           <div className={styles.meta}>
             {tx("Containing branches")}:{" "}
