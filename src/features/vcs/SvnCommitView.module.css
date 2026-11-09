@@ -220,18 +220,18 @@
   font-size: 12px;
 }
 
-/* A project section nested inside Changes / Unversioned Files: one tree level
-   below the group header, its files one level below that — the same 40px step
-   the flat file rows use (.row.fileRow), not tied to the tree-indent setting. */
+/* A project section nested inside Changes / Unversioned Files: its disclose
+   sits under the group header's checkbox (24px), its files one step deeper. */
 .project {
   display: flex;
   flex-direction: column;
 }
 
 .project .header {
-  padding-left: 44px;
+  padding-left: 24px;
 }
 
+/* Past the parent's checkbox: 24 + disclose 16 + gap 4 + check 14. */
 .project .fileRow {
-  padding-left: 84px;
+  padding-left: 60px;
 }
