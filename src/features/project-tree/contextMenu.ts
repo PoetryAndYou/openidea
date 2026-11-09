@@ -346,8 +346,10 @@ export function contextMenuItems(nodes: ProjectNode[]): MenuItem[] {
     { kind: "separator" },
   );
 
-  // Git › (`vcsAvailable` also covers repositories nested below a non-Git project root)
-  if (inWorkspace && (project?.isGit || getContext().vcsAvailable === true)) {
+  // Git › (`vcsAvailable` also covers repositories nested below a non-Git project root);
+  // a Subversion workspace may still hold a stray Git checkout (a reference folder),
+  // but its Git menu would be noise on every folder then.
+  if (inWorkspace && (project?.isGit || getContext().vcsAvailable === true) && !project?.isSvn) {
     const arg = vcsArg(nodes);
     const dirs = nodes.some((n) => n.dir);
     push(
