@@ -823,7 +823,7 @@ export class EditorController implements SlotHost {
             openInMenu(slot.model.path),
             { kind: "separator" },
             localHistoryMenu(slot.model.path),
-            gitMenu(slot.model.path),
+            vcsMenu(slot.model.path),
             { kind: "separator" },
             {
               kind: "action",
@@ -1846,7 +1846,7 @@ export class EditorController implements SlotHost {
             openInMenu(path),
             { kind: "separator" },
             localHistoryMenu(path),
-            ...(inProject ? [gitMenu(path)] : []),
+            ...(inProject ? [vcsMenu(path)] : []),
             { kind: "separator" },
             { kind: "action", action: "diff.compareWith", arg: path, label: "Compare With…" },
             { kind: "action", action: "diff.compareWithClipboard", arg: { path }, label: "Compare with Clipboard" },
@@ -1926,6 +1926,37 @@ function gitMenu(path: string): MenuItem {
       { kind: "action", action: "vcs.branches", label: "Branches…" },
     ],
   };
+}
+
+/** Subversion › for one file, the editor's counterpart of the tree's menu. */
+function svnMenu(path: string): MenuItem {
+  return {
+    label: "Subversion",
+    submenu: [
+      { kind: "action", action: "vcs.commit", label: "Commit File…" },
+      { kind: "action", action: "vcs.svnAdd", arg: [path], label: "Add" },
+      { kind: "action", action: "vcs.svnIgnore", arg: [path], label: "Add to svn:ignore" },
+      { kind: "separator" },
+      { kind: "action", action: "vcs.annotate", arg: path, label: "Annotate" },
+      { kind: "action", action: "vcs.svnShowDiff", arg: [path], label: "Show Diff" },
+      { kind: "action", action: "vcs.showHistory", arg: [path], label: "Show History" },
+      { kind: "action", action: "vcs.svnRevert", arg: [path], label: "Revert…" },
+      { kind: "separator" },
+      { kind: "action", action: "vcs.svnUpdate", label: "Update" },
+      { kind: "action", action: "vcs.svnUpdateTo", label: "Update to Revision…" },
+      { kind: "action", action: "vcs.svnResolve", arg: [path], label: "Mark Resolved" },
+      { kind: "action", action: "vcs.svnCleanup", label: "Cleanup Working Copy" },
+      { kind: "separator" },
+      { kind: "action", action: "vcs.svnInfo", label: "Show Repository Info" },
+    ],
+  };
+}
+
+/** The version-control submenu of a file: Subversion for a working-copy project,
+ * Git otherwise. A Subversion workspace may hold a stray Git checkout, whose
+ * Git-only menu would be noise on every file. */
+function vcsMenu(path: string): MenuItem {
+  return useProject.getState().project?.isSvn ? svnMenu(path) : gitMenu(path);
 }
 
 function sameStatus(a: EditorStatus, b: EditorStatus): boolean {
