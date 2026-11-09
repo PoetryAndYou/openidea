@@ -1513,6 +1513,40 @@ pub async fn vcs_svn_info(host: &Host, window: &str, repo: Option<PathBuf>) -> I
     .await
 }
 
+/// The revision that last changed `path` (`rN`), the one whose message
+/// "Set Revision Properties…" edits for a file.
+pub async fn vcs_svn_file_revision(host: &Host, window: &str, path: PathBuf) -> IdeResult<String> {
+    let project = host.project(window)?;
+    blocking(move || {
+        let svn = project
+            .svn_repos()
+            .for_path(&path)
+            .cloned()
+            .ok_or_else(|| ide_core::IdeError::unavailable("file is not in a Subversion working copy"))?;
+        svn.last_changed_revision(&path)?.ok_or_else(|| ide_core::IdeError::not_found("no revision changed this file"))
+    })
+    .await
+}
+
+/// Sets a revision's commit message (`svn propset --revprop … svn:log`); the
+/// repository must allow it (a `pre-revprop-change` hook).
+pub async fn vcs_svn_set_message(
+    host: &Host,
+    window: &str,
+    repo: Option<PathBuf>,
+    revision: String,
+    message: String,
+) -> IdeResult<()> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        let svn = svn_target(&project, repo.as_deref())
+            .ok_or_else(|| ide_core::IdeError::unavailable("project has no Subversion working copy"))?;
+        svn.set_revision_message(&revision, &message)
+    })
+    .await
+}
+
 /// Every Subversion working copy of the project (its project folders), so the
 /// commit panel can group changes per project. One linear repository shows as
 /// one log root; this lists the copies themselves.
@@ -1655,6 +1689,12 @@ pub(crate) fn register(d: &mut Dispatcher) {
     d.add("vcs_roots", |c| async move { vcs_roots(&c.host, &c.window) });
     d.add("vcs_svn_info", |c| async move { vcs_svn_info(&c.host, &c.window, c.arg("repo")?).await });
     d.add("vcs_svn_roots", |c| async move { vcs_svn_roots(&c.host, &c.window) });
+    d.add("vcs_svn_file_revision", |c| async move {
+        vcs_svn_file_revision(&c.host, &c.window, c.arg("path")?).await
+    });
+    d.add("vcs_svn_set_message", |c| async move {
+        vcs_svn_set_message(&c.host, &c.window, c.arg("repo")?, c.arg("revision")?, c.arg("message")?).await
+    });
     d.add("vcs_svn_update", |c| async move { vcs_svn_update(&c.host, &c.window, c.arg("repo")?).await });
     d.add("vcs_svn_commit", |c| async move {
         vcs_svn_commit(&c.host, &c.window, c.arg("repo")?, c.arg("paths")?, c.arg("message")?).await

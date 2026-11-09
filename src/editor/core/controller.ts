@@ -1943,7 +1943,7 @@ function svnMenu(path: string): MenuItem {
       { kind: "action", action: "vcs.svnRevert", arg: [path], label: "Revert…" },
       { kind: "separator" },
       { kind: "action", action: "vcs.svnUpdate", label: "Update" },
-      { kind: "action", action: "vcs.svnUpdateTo", label: "Update to Revision…" },
+      { kind: "action", action: "vcs.svnSetMessage", arg: [path], label: "Set Revision Properties…" },
       { kind: "action", action: "vcs.svnResolve", arg: [path], label: "Mark Resolved" },
       { kind: "action", action: "vcs.svnCleanup", label: "Cleanup Working Copy" },
       { kind: "separator" },

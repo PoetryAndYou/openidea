@@ -6477,5 +6477,12 @@
   "Could not revert": "无法还原",
   "Other Files": "其他文件",
   "Include all {title} changes in commit": "提交中包含 {title} 的全部变更",
-  "Revert {count} selected files…": "还原选中的 {count} 个文件…"
+  "Revert {count} selected files…": "还原选中的 {count} 个文件…",
+  "Set Revision Properties": "设置提交属性",
+  "Set Revision Properties…": "设置提交属性…",
+  "Only the message of this revision changes. The repository must allow revision-property edits.": "只修改这个修订的提交消息。仓库必须允许修改修订属性（pre-revprop-change 钩子）。",
+  "Select a file to edit its revision message": "请选择一个文件，以编辑它的修订提交消息",
+  "Could not open the commit message": "无法打开提交消息",
+  "The repository does not allow editing revision properties (no pre-revprop-change hook).": "该仓库不允许修改修订属性（服务端未启用 pre-revprop-change 钩子）。",
+  "Commit message of {revision} updated": "已更新 {revision} 的提交消息"
 }

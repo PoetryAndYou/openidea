@@ -30,6 +30,7 @@ import { focusedDiffNavigator } from "./diffNavigator";
 import { openDiff, withChain, workingDiffData } from "./diffInput";
 import { effectiveKind } from "./model";
 import { svnDiffData } from "./SvnCommitView";
+import { showSvnMessage } from "./SvnMessageDialog";
 import { showSvnRevert } from "./SvnRevertDialog";
 import { buildChangeTree, changeGroupPaths } from "./changes";
 import { useChangelists } from "./changelists";
@@ -37,7 +38,7 @@ import { openDialog } from "./dialogs";
 import { gotoChange, rollbackSelectedLines } from "./gutter";
 import { openLocalHistory } from "./localHistoryKind";
 import { showSelectionHistory } from "./selectionHistoryKind";
-import { openLogTab, revealCommit, selectGitTab, useGitLog } from "./logStore";
+import { openLogTab, reloadLog, revealCommit, selectGitTab, useGitLog } from "./logStore";
 import { isModalCommit, openCommit, pushAfterCommit } from "./commitUi";
 import { allRepos, runRemote } from "./ops";
 import { showPushDialog, showUpdateDialog, type PushTarget } from "./remoteUi";
@@ -51,7 +52,7 @@ import {
   showRebaseDialog,
   showWorktrees,
 } from "./gitMenuDialogs";
-import { currentRepo, refreshNow, repoName, useVcs } from "./store";
+import { currentRepo, refreshNow, repoName, repoOf, useVcs } from "./store";
 import { tx } from "@/platform/i18n";
 
 import { addToIgnore } from "./ignore";
@@ -542,6 +543,37 @@ export function registerVcsActions(): () => void {
         const result = await call(commands.vcsSvnUpdateTo(currentRepo(), revision.trim()));
         await refreshNow();
         notifications().notify({ group: "vcs", level: "info", title: `${tx("Updated to")} ${result.revision}` });
+      },
+    },
+    {
+      id: "vcs.svnSetMessage",
+      title: "Set Revision Properties…",
+      category: "Subversion",
+      icon: "settings",
+      when: VCS,
+      keywords: ["svn:log", "commit message", "revprop"],
+      run: async ({ arg }) => {
+        const path = contextPaths(arg)[0];
+        if (!path) {
+          notifications().notify({ group: "vcs", level: "info", title: "Select a file to edit its revision message" });
+          return;
+        }
+        try {
+          // The revision that last changed the file is the one whose message the
+          // file's menu edits, as IDEA's Subversion menu does.
+          const revision = await call(commands.vcsSvnFileRevision(path));
+          const details = await call(commands.vcsLogDetails(repoOf(path) ?? currentRepo(), revision));
+          showSvnMessage(revision, details.message ?? "", () => {
+            notifications().notify({
+              group: "vcs",
+              level: "info",
+              title: tx`Commit message of ${revision} updated`,
+            });
+            void reloadLog({}).catch(() => {});
+          });
+        } catch (e) {
+          notifications().notify({ group: "vcs", level: "error", title: tx`Could not open the commit message`, body: String(e) });
+        }
       },
     },
     {

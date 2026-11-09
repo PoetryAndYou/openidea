@@ -1,0 +1,33 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hint {
+  color: var(--fg-muted);
+  font-size: var(--fs-small);
+}
+
+.message {
+  min-height: 140px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--fg);
+  padding: 8px;
+  font-size: var(--fs-ui);
+  font-family: var(--font-mono, monospace);
+}
+
+.note {
+  color: var(--fg-muted);
+  font-size: var(--fs-small);
+}
+
+.error {
+  color: var(--danger);
+  font-size: var(--fs-small);
+  white-space: pre-wrap;
+}

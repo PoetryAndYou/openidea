@@ -498,6 +498,10 @@ export const commands = {
 	vcsSvnInfo: (repo: string | null) => typedError<SvnInfo, IdeError>(__TAURI_INVOKE("vcs_svn_info", { repo })),
 	/**  Every Subversion working copy of the project, for grouping changes per project. */
 	vcsSvnRoots: () => typedError<IpcPath[], IdeError>(__TAURI_INVOKE("vcs_svn_roots")),
+	/**  The revision that last changed a file (`rN`), whose message can be edited. */
+	vcsSvnFileRevision: (path: string) => typedError<string, IdeError>(__TAURI_INVOKE("vcs_svn_file_revision", { path })),
+	/**  Replaces a revision's commit message (`svn propset --revprop … svn:log`). */
+	vcsSvnSetMessage: (repo: string | null, revision: string, message: string) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_set_message", { repo, revision, message })),
 	/**  `svn update`: brings the working copy to HEAD, keeping local changes. */
 	vcsSvnUpdate: (repo: string | null) => typedError<UpdateSummary, IdeError>(__TAURI_INVOKE("vcs_svn_update", { repo })),
 	/**  SVN commit of the selected paths with a message; returns the new revision (`rN`). */

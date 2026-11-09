@@ -898,6 +898,30 @@ pub async fn vcs_svn_roots(window: Window, state: State<'_, AppState>) -> IdeRes
     ide_host::ops::vcs::vcs_svn_roots(&state.host, window.label())
 }
 
+/// The revision that last changed a file (`rN`), whose message can be edited.
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_file_revision(
+    window: Window,
+    state: State<'_, AppState>,
+    path: PathBuf,
+) -> IdeResult<String> {
+    ide_host::ops::vcs::vcs_svn_file_revision(&state.host, window.label(), path).await
+}
+
+/// Replaces a revision's commit message (`svn propset --revprop … svn:log`).
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_set_message(
+    window: Window,
+    state: State<'_, AppState>,
+    repo: Option<PathBuf>,
+    revision: String,
+    message: String,
+) -> IdeResult<()> {
+    ide_host::ops::vcs::vcs_svn_set_message(&state.host, window.label(), repo, revision, message).await
+}
+
 /// `svn update`: brings the working copy to HEAD, keeping local changes.
 #[tauri::command]
 #[specta::specta]
