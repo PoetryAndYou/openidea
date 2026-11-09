@@ -1,0 +1,98 @@
+.body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--fg-muted);
+  font-size: var(--fs-small);
+}
+
+.list {
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 8px;
+  font-size: var(--fs-ui);
+  cursor: default;
+}
+
+.row:hover {
+  background: var(--bg-tree-hover, var(--bg-hover));
+}
+
+.name {
+  flex: 0 0 auto;
+  font-weight: 600;
+  color: var(--fg-strong);
+}
+
+.value {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: pre;
+  color: var(--fg-muted);
+}
+
+.field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.label {
+  flex: 0 0 auto;
+  color: var(--fg-secondary);
+  font-size: var(--fs-small);
+}
+
+.input {
+  flex: 1 1 auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--fg);
+  padding: 4px 8px;
+  font-size: var(--fs-ui);
+}
+
+.textarea {
+  min-height: 80px;
+  resize: vertical;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input);
+  color: var(--fg);
+  padding: 6px 8px;
+  font-size: var(--fs-ui);
+  font-family: var(--font-mono, monospace);
+}
+
+.actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.error {
+  color: var(--danger);
+  font-size: var(--fs-small);
+  white-space: pre-wrap;
+}
+
+.note {
+  color: var(--fg-muted);
+  font-size: var(--fs-small);
+}

@@ -27,8 +27,9 @@ import {
 import { setAmend, useCommit } from "./commitStore";
 import { gotoConflict, resolveAtCaret, showConflictsDialog } from "./conflictsUi";
 import { focusedDiffNavigator } from "./diffNavigator";
-import { openDiff, withChain, workingDiffData } from "./diffInput";
+import { openDiff, withChain, workingDiffData, type DiffData } from "./diffInput";
 import { effectiveKind } from "./model";
+import { showSvnProperties } from "./SvnPropertiesDialog";
 import { svnDiffData } from "./SvnCommitView";
 import { showSvnMessage } from "./SvnMessageDialog";
 import { showSvnRevert } from "./SvnRevertDialog";
@@ -160,6 +161,17 @@ function showOperations() {
       aria-label="VCS Operations"
     />
   ));
+}
+
+/** The working text against a revision (Compare with Latest Repository Version). */
+async function openSvnCompare(paths: string[], rev: string) {
+  const items: DiffData[] = paths.map((path) => ({
+    path,
+    left: { type: "rev", rev, label: rev },
+    right: { type: "worktree" },
+  }));
+  if (items.length === 1) await openDiff(items[0]!, { preview: true });
+  else for (let i = 0; i < items.length && i < 5; i++) await openDiff(items[i]!, { preview: false });
 }
 
 export function registerVcsActions(): () => void {
@@ -574,6 +586,143 @@ export function registerVcsActions(): () => void {
         } catch (e) {
           notifications().notify({ group: "vcs", level: "error", title: tx`Could not open the commit message`, body: String(e) });
         }
+      },
+    },
+    {
+      id: "vcs.svnProperties",
+      title: "Edit Properties…",
+      category: "Subversion",
+      icon: "settings",
+      when: VCS,
+      keywords: ["svn propset", "svn:ignore", "svn:eol-style"],
+      run: ({ arg }) => {
+        const path = contextPaths(arg)[0];
+        if (!path) {
+          notifications().notify({ group: "vcs", level: "info", title: tx`Select a file or folder first` });
+          return;
+        }
+        showSvnProperties(path, () => void refreshNow());
+      },
+    },
+    {
+      id: "vcs.svnCompareLatest",
+      title: "Compare with Latest Repository Version",
+      category: "Subversion",
+      icon: "diff",
+      when: VCS,
+      keywords: ["svn diff head"],
+      run: async ({ arg }) => {
+        const paths = contextPaths(arg);
+        if (!paths.length) return;
+        await openSvnCompare(paths, "HEAD");
+      },
+    },
+    {
+      id: "vcs.svnCompareRevision",
+      title: "Compare with Revision…",
+      category: "Subversion",
+      icon: "diff",
+      when: VCS,
+      keywords: ["svn diff -r"],
+      run: async ({ arg }) => {
+        const paths = contextPaths(arg);
+        if (!paths.length) return;
+        const revision = await promptInput({
+          title: "Compare with Revision",
+          label: "Revision (e.g. 123, r123, HEAD, BASE)",
+          initial: "",
+        });
+        if (!revision?.trim()) return;
+        await openSvnCompare(paths, revision.trim());
+      },
+    },
+    {
+      id: "vcs.svnShowRevision",
+      title: "Show Current Revision",
+      category: "Subversion",
+      icon: "info",
+      when: VCS,
+      run: async () => {
+        const info = await call(commands.vcsSvnInfo(currentRepo()));
+        notifications().notify({
+          group: "vcs",
+          level: "info",
+          title: tx`Revision ${info.revision}`,
+          body: `${info.url}\n${tx("Last changed by")} ${info.author}`,
+        });
+      },
+    },
+    {
+      id: "vcs.svnLock",
+      title: "Lock…",
+      category: "Subversion",
+      icon: "lock",
+      when: VCS,
+      keywords: ["svn lock"],
+      run: async ({ arg }) => {
+        const paths = contextPaths(arg);
+        if (!paths.length) return;
+        const message = await call(commands.vcsSvnLock(paths));
+        notifications().notify({ group: "vcs", level: "info", title: tx`Locked`, body: message });
+        await refreshNow();
+      },
+    },
+    {
+      id: "vcs.svnUnlock",
+      title: "Unlock",
+      category: "Subversion",
+      icon: "unlock",
+      when: VCS,
+      keywords: ["svn unlock"],
+      run: async ({ arg }) => {
+        const paths = contextPaths(arg);
+        if (!paths.length) return;
+        await call(commands.vcsSvnUnlock(paths));
+        notifications().notify({ group: "vcs", level: "info", title: tx`Unlocked` });
+        await refreshNow();
+      },
+    },
+    {
+      id: "vcs.svnRelocate",
+      title: "Relocate…",
+      category: "Subversion",
+      icon: "link",
+      when: VCS,
+      keywords: ["svn relocate", "switch url"],
+      run: async () => {
+        const url = await promptInput({
+          title: "Relocate Working Copy",
+          label: "New repository URL",
+          initial: "",
+        });
+        if (!url?.trim()) return;
+        await call(commands.vcsSvnRelocate(currentRepo(), url.trim()));
+        notifications().notify({ group: "vcs", level: "info", title: tx`Relocated to ${url.trim()}` });
+        await refreshNow();
+      },
+    },
+    {
+      id: "vcs.svnBranchOrTag",
+      title: "Branch or Tag…",
+      category: "Subversion",
+      icon: "branch",
+      when: VCS,
+      keywords: ["svn copy", "branch", "tag"],
+      run: async () => {
+        const destination = await promptInput({
+          title: "Branch or Tag",
+          label: "Target URL (e.g. …/branches/my-feature or …/tags/v1.0)",
+          initial: "",
+        });
+        if (!destination?.trim()) return;
+        const message = await promptInput({
+          title: "Branch or Tag",
+          label: "Commit message",
+          initial: tx`Create ${destination.trim()}`,
+        });
+        if (message === null) return;
+        const revision = await call(commands.vcsSvnCopy(currentRepo(), destination.trim(), message || ""));
+        notifications().notify({ group: "vcs", level: "info", title: tx`Created ${revision}` });
       },
     },
     {

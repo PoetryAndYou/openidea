@@ -891,6 +891,81 @@ pub async fn vcs_svn_info(
     ide_host::ops::vcs::vcs_svn_info(&state.host, window.label(), repo).await
 }
 
+/// Versioned properties of a file or folder (`svn:ignore`, `svn:eol-style`, …).
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_properties(
+    window: Window,
+    state: State<'_, AppState>,
+    path: PathBuf,
+) -> IdeResult<Vec<ide_vcs_svn::Property>> {
+    ide_host::ops::vcs::vcs_svn_properties(&state.host, window.label(), path).await
+}
+
+/// Sets one versioned property on a file or folder.
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_set_property(
+    window: Window,
+    state: State<'_, AppState>,
+    path: PathBuf,
+    name: String,
+    value: String,
+) -> IdeResult<()> {
+    ide_host::ops::vcs::vcs_svn_set_property(&state.host, window.label(), path, name, value).await
+}
+
+/// Removes one versioned property from a file or folder.
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_delete_property(
+    window: Window,
+    state: State<'_, AppState>,
+    path: PathBuf,
+    name: String,
+) -> IdeResult<()> {
+    ide_host::ops::vcs::vcs_svn_delete_property(&state.host, window.label(), path, name).await
+}
+
+/// Locks files (`svn lock`).
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_lock(window: Window, state: State<'_, AppState>, paths: Vec<PathBuf>) -> IdeResult<String> {
+    ide_host::ops::vcs::vcs_svn_lock(&state.host, window.label(), paths).await
+}
+
+/// Releases file locks (`svn unlock`).
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_unlock(window: Window, state: State<'_, AppState>, paths: Vec<PathBuf>) -> IdeResult<()> {
+    ide_host::ops::vcs::vcs_svn_unlock(&state.host, window.label(), paths).await
+}
+
+/// Points the working copy at another repository URL (`svn relocate`).
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_relocate(
+    window: Window,
+    state: State<'_, AppState>,
+    repo: Option<PathBuf>,
+    url: String,
+) -> IdeResult<()> {
+    ide_host::ops::vcs::vcs_svn_relocate(&state.host, window.label(), repo, url).await
+}
+
+/// Creates a branch or tag from the working copy's URL (`svn copy`).
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_copy(
+    window: Window,
+    state: State<'_, AppState>,
+    repo: Option<PathBuf>,
+    destination: String,
+    message: String,
+) -> IdeResult<String> {
+    ide_host::ops::vcs::vcs_svn_copy(&state.host, window.label(), repo, destination, message).await
+}
+
 /// Every Subversion working copy of the project, for grouping changes per project.
 #[tauri::command]
 #[specta::specta]

@@ -498,6 +498,20 @@ export const commands = {
 	vcsSvnInfo: (repo: string | null) => typedError<SvnInfo, IdeError>(__TAURI_INVOKE("vcs_svn_info", { repo })),
 	/**  Every Subversion working copy of the project, for grouping changes per project. */
 	vcsSvnRoots: () => typedError<IpcPath[], IdeError>(__TAURI_INVOKE("vcs_svn_roots")),
+	/**  Versioned properties of a file or folder (`svn:ignore`, `svn:eol-style`, …). */
+	vcsSvnProperties: (path: string) => typedError<Property[], IdeError>(__TAURI_INVOKE("vcs_svn_properties", { path })),
+	/**  Sets one versioned property on a file or folder. */
+	vcsSvnSetProperty: (path: string, name: string, value: string) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_set_property", { path, name, value })),
+	/**  Removes one versioned property from a file or folder. */
+	vcsSvnDeleteProperty: (path: string, name: string) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_delete_property", { path, name })),
+	/**  Locks files (`svn lock`). */
+	vcsSvnLock: (paths: string[]) => typedError<string, IdeError>(__TAURI_INVOKE("vcs_svn_lock", { paths })),
+	/**  Releases file locks (`svn unlock`). */
+	vcsSvnUnlock: (paths: string[]) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_unlock", { paths })),
+	/**  Points the working copy at another repository URL (`svn relocate`). */
+	vcsSvnRelocate: (repo: string | null, url: string) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_relocate", { repo, url })),
+	/**  Creates a branch or tag from the working copy's URL (`svn copy`). */
+	vcsSvnCopy: (repo: string | null, destination: string, message: string) => typedError<string, IdeError>(__TAURI_INVOKE("vcs_svn_copy", { repo, destination, message })),
 	/**  The revision that last changed a file (`rN`), whose message can be edited. */
 	vcsSvnFileRevision: (path: string) => typedError<string, IdeError>(__TAURI_INVOKE("vcs_svn_file_revision", { path })),
 	/**  Replaces a revision's commit message (`svn propset --revprop … svn:log`). */
@@ -6327,6 +6341,12 @@ export type ProjectStructureSettings = {
  *  `ui.input-multiline`, `ui.confirm`).
  */
 export type Prompt = { kind: "quickPick"; title: string; items: PickItem[]; multiple: boolean } | { kind: "input"; prompt: string; value: string | null; multiline: boolean } | { kind: "confirm"; title: string; message: string };
+
+/**  One versioned property of a file or folder (`svn:ignore`, `svn:eol-style`, …). */
+export type Property = {
+	name: string,
+	value: string,
+};
 
 export type ProxyKind = "http" | "socks";
 

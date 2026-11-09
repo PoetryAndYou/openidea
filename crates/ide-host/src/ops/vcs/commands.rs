@@ -1553,6 +1553,113 @@ pub async fn vcs_svn_set_message(
     .await
 }
 
+/// Versioned properties of `path` (`svn:ignore`, `svn:eol-style`, …).
+pub async fn vcs_svn_properties(host: &Host, window: &str, path: PathBuf) -> IdeResult<Vec<ide_vcs_svn::Property>> {
+    let project = host.project(window)?;
+    blocking(move || {
+        let svn = project
+            .svn_repos()
+            .for_path(&path)
+            .cloned()
+            .ok_or_else(|| ide_core::IdeError::unavailable("path is not in a Subversion working copy"))?;
+        svn.properties(&path)
+    })
+    .await
+}
+
+/// Sets one versioned property on `path`.
+pub async fn vcs_svn_set_property(
+    host: &Host,
+    window: &str,
+    path: PathBuf,
+    name: String,
+    value: String,
+) -> IdeResult<()> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        let svn = project
+            .svn_repos()
+            .for_path(&path)
+            .cloned()
+            .ok_or_else(|| ide_core::IdeError::unavailable("path is not in a Subversion working copy"))?;
+        svn.set_property(&path, &name, &value)
+    })
+    .await
+}
+
+/// Removes one versioned property from `path`.
+pub async fn vcs_svn_delete_property(host: &Host, window: &str, path: PathBuf, name: String) -> IdeResult<()> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        let svn = project
+            .svn_repos()
+            .for_path(&path)
+            .cloned()
+            .ok_or_else(|| ide_core::IdeError::unavailable("path is not in a Subversion working copy"))?;
+        svn.delete_property(&path, &name)
+    })
+    .await
+}
+
+/// Locks `paths` (`svn lock`); returns svn's message.
+pub async fn vcs_svn_lock(host: &Host, window: &str, paths: Vec<PathBuf>) -> IdeResult<String> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        let mut messages = Vec::new();
+        for (repo, paths) in group_svn_paths(&project, &paths) {
+            messages.push(repo.lock(&paths, None)?);
+        }
+        Ok(messages.join("\n"))
+    })
+    .await
+}
+
+/// Releases locks on `paths` (`svn unlock`).
+pub async fn vcs_svn_unlock(host: &Host, window: &str, paths: Vec<PathBuf>) -> IdeResult<()> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        for (repo, paths) in group_svn_paths(&project, &paths) {
+            repo.unlock(&paths)?;
+        }
+        Ok(())
+    })
+    .await
+}
+
+/// Points the working copy at another repository URL (`svn relocate`).
+pub async fn vcs_svn_relocate(host: &Host, window: &str, repo: Option<PathBuf>, url: String) -> IdeResult<()> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        let svn = svn_target(&project, repo.as_deref())
+            .ok_or_else(|| ide_core::IdeError::unavailable("project has no Subversion working copy"))?;
+        svn.relocate(&url)
+    })
+    .await
+}
+
+/// Copies the working copy's URL to `destination` (`svn copy`) — a branch or tag.
+pub async fn vcs_svn_copy(
+    host: &Host,
+    window: &str,
+    repo: Option<PathBuf>,
+    destination: String,
+    message: String,
+) -> IdeResult<String> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        let svn = svn_target(&project, repo.as_deref())
+            .ok_or_else(|| ide_core::IdeError::unavailable("project has no Subversion working copy"))?;
+        svn.copy_to(&destination, &message)
+    })
+    .await
+}
+
 /// Every Subversion working copy of the project (its project folders), so the
 /// commit panel can group changes per project. One linear repository shows as
 /// one log root; this lists the copies themselves.
@@ -1695,6 +1802,22 @@ pub(crate) fn register(d: &mut Dispatcher) {
     d.add("vcs_roots", |c| async move { vcs_roots(&c.host, &c.window) });
     d.add("vcs_svn_info", |c| async move { vcs_svn_info(&c.host, &c.window, c.arg("repo")?).await });
     d.add("vcs_svn_roots", |c| async move { vcs_svn_roots(&c.host, &c.window) });
+    d.add("vcs_svn_properties", |c| async move { vcs_svn_properties(&c.host, &c.window, c.arg("path")?).await });
+    d.add("vcs_svn_set_property", |c| async move {
+        vcs_svn_set_property(&c.host, &c.window, c.arg("path")?, c.arg("name")?, c.arg("value")?).await
+    });
+    d.add("vcs_svn_delete_property", |c| async move {
+        vcs_svn_delete_property(&c.host, &c.window, c.arg("path")?, c.arg("name")?).await
+    });
+    d.add("vcs_svn_lock", |c| async move { vcs_svn_lock(&c.host, &c.window, c.arg("paths")?).await });
+    d.add("vcs_svn_unlock", |c| async move { vcs_svn_unlock(&c.host, &c.window, c.arg("paths")?).await });
+    d.add(
+        "vcs_svn_relocate",
+        |c| async move { vcs_svn_relocate(&c.host, &c.window, c.arg("repo")?, c.arg("url")?).await },
+    );
+    d.add("vcs_svn_copy", |c| async move {
+        vcs_svn_copy(&c.host, &c.window, c.arg("repo")?, c.arg("destination")?, c.arg("message")?).await
+    });
     d.add("vcs_svn_file_revision", |c| async move { vcs_svn_file_revision(&c.host, &c.window, c.arg("path")?).await });
     d.add("vcs_svn_set_message", |c| async move {
         vcs_svn_set_message(&c.host, &c.window, c.arg("repo")?, c.arg("revision")?, c.arg("message")?).await

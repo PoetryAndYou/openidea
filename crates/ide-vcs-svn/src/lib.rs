@@ -49,6 +49,14 @@ pub struct SvnInfo {
     pub date: f64,
 }
 
+/// One versioned property of a file or folder (`svn:ignore`, `svn:eol-style`, …).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
+#[serde(rename_all = "camelCase")]
+pub struct Property {
+    pub name: String,
+    pub value: String,
+}
+
 /// The result of [`SvnRepo::update`].
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize, Type)]
 #[serde(rename_all = "camelCase")]
@@ -376,6 +384,96 @@ impl SvnRepo {
     /// the way out of `E155004: run 'svn cleanup'`.
     pub fn cleanup(&self) -> IdeResult<()> {
         self.run(&["cleanup"]).map(|_| ())
+    }
+
+    /// The versioned properties of `path` (`svn proplist --xml`, which keeps
+    /// multi-line values such as `svn:ignore` intact).
+    pub fn properties(&self, path: &Path) -> IdeResult<Vec<Property>> {
+        let xml = self.run(&["proplist", "--xml", "--verbose", &path.to_string_lossy()])?;
+        let doc = Document::parse(&xml).map_err(xml_error)?;
+        Ok(doc
+            .descendants()
+            .filter(|node| node.has_tag_name("property"))
+            .map(|node| Property {
+                name: node.attribute("name").unwrap_or_default().to_string(),
+                value: node.text().unwrap_or_default().to_string(),
+            })
+            .collect())
+    }
+
+    /// Sets a versioned property on `path` (`svn propset`).
+    pub fn set_property(&self, path: &Path, name: &str, value: &str) -> IdeResult<()> {
+        let out = self.output(&["propset", name, "-F", &self.write_value(value)?, &path.to_string_lossy()])?;
+        if !out.status.success() {
+            return Err(IdeError::internal(format!("svn: {}", stderr_excerpt(&out.stderr))));
+        }
+        Ok(())
+    }
+
+    /// Removes a versioned property from `path` (`svn propdel`).
+    pub fn delete_property(&self, path: &Path, name: &str) -> IdeResult<()> {
+        self.run(&["propdel", name, &path.to_string_lossy()]).map(|_| ())
+    }
+
+    /// The working text against `rev` (`HEAD`, `BASE` or `rN`) — IDEA's
+    /// "Compare with Latest Repository Version" / "Compare with Revision".
+    pub fn diff_against(&self, paths: &[PathBuf], rev: &str) -> IdeResult<String> {
+        let rev = normalize_rev(rev);
+        let mut args = vec!["diff".to_string(), "-r".to_string(), rev];
+        args.extend(paths.iter().map(|path| path.to_string_lossy().into_owned()));
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        let out = self.output(&args)?;
+        if !out.status.success() {
+            return Err(IdeError::internal(format!("svn: {}", stderr_excerpt(&out.stderr))));
+        }
+        Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+    }
+
+    /// Takes a lock on `paths` (`svn lock`), returning svn's message.
+    pub fn lock(&self, paths: &[PathBuf], message: Option<&str>) -> IdeResult<String> {
+        let mut args = vec!["lock".to_string()];
+        if let Some(message) = message.filter(|m| !m.is_empty()) {
+            args.push("-m".into());
+            args.push(message.to_string());
+        }
+        args.extend(paths.iter().map(|path| path.to_string_lossy().into_owned()));
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        self.run(&args)
+    }
+
+    /// Releases locks on `paths` (`svn unlock`).
+    pub fn unlock(&self, paths: &[PathBuf]) -> IdeResult<()> {
+        let mut args = vec!["unlock".to_string()];
+        args.extend(paths.iter().map(|path| path.to_string_lossy().into_owned()));
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        self.run(&args).map(|_| ())
+    }
+
+    /// Points the working copy at a new repository URL (`svn relocate`).
+    pub fn relocate(&self, url: &str) -> IdeResult<()> {
+        self.run(&["relocate", &self.root.to_string_lossy(), url])?;
+        self.invalidate_info();
+        Ok(())
+    }
+
+    /// Creates a branch or tag from the working copy's URL (`svn copy`), the way
+    /// IDEA's "Branch or Tag…" does.
+    pub fn copy_to(&self, destination_url: &str, message: &str) -> IdeResult<String> {
+        let from = self.url_of("").ok_or_else(|| IdeError::unavailable("svn working copy has no URL"))?;
+        let out = self.output(&["copy", "-m", message, &from, destination_url])?;
+        if !out.status.success() {
+            return Err(IdeError::internal(format!("svn: {}", stderr_excerpt(&out.stderr))));
+        }
+        let text = String::from_utf8_lossy(&out.stdout).into_owned();
+        Ok(rev_from(&text).unwrap_or_default())
+    }
+
+    /// Writes `value` to a temporary file for `-F` arguments (a value may start
+    /// with '-' or hold newlines).
+    fn write_value(&self, value: &str) -> IdeResult<String> {
+        let path = std::env::temp_dir().join(format!("openidea-svn-value-{}.txt", std::process::id()));
+        std::fs::write(&path, value).map_err(|e| IdeError::internal(format!("cannot write {path:?}: {e}")))?;
+        Ok(path.to_string_lossy().into_owned())
     }
 
     /// Every file present at `revision` (`svn list -R`), relative to the
