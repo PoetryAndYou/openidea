@@ -479,8 +479,21 @@ pub async fn vcs_log(host: &Host, window: &str, repo: Option<PathBuf>, query: Lo
             let svns = p.svn_repos();
             let q = query.clone();
             return blocking(move || {
+                // A path-filtered history is answered by the copies holding that path:
+                // asking a copy that does not hold it makes svn resolve the absolute
+                // path against *its own* working copy and report its own revisions.
+                let mut owners: Vec<std::sync::Arc<SvnRepo>> = Vec::new();
+                for path in q.path.iter().chain(q.paths.iter()) {
+                    let path: &Path = path.as_ref();
+                    if let Some(repo) = svns.for_path(path)
+                        && !owners.iter().any(|o| o.root() == repo.root())
+                    {
+                        owners.push(repo.clone());
+                    }
+                }
+                let copies: &[std::sync::Arc<SvnRepo>] = if owners.is_empty() { svns.all() } else { &owners };
                 let mut merged: Vec<Commit> = Vec::new();
-                for svn in svns.all() {
+                for svn in copies {
                     let mut per = q.clone();
                     per.skip = 0;
                     per.limit = 0;
