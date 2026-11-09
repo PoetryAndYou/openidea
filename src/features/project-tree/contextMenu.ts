@@ -314,8 +314,9 @@ export function contextMenuItems(nodes: ProjectNode[]): MenuItem[] {
     { kind: "separator" },
   );
 
-  // Git ›
-  if (inProject && project?.isGit) {
+  // Git › — a Subversion workspace may still contain a stray Git checkout (a
+  // reference folder); its Git menu would be noise on every folder then.
+  if (inProject && project?.isGit && !project?.isSvn) {
     const arg = vcsArg(nodes);
     const dirs = nodes.some((n) => n.dir);
     push(
