@@ -15,6 +15,8 @@ import { Icon, T, fileIconName } from "@/ui";
 import { tx } from "@/platform/i18n";
 import { deleteFiles } from "./changeOps";
 import { openDiff, withChain, type DiffData } from "./diffInput";
+import { showSvnRevert } from "./SvnRevertDialog";
+import type { FileStatus } from "@/bindings";
 import styles from "./SvnCommitView.module.css";
 
 /** Working diff against BASE: added/unversioned files have no BASE side. */
@@ -67,6 +69,8 @@ function CheckMark({
 }
 
 interface Row {
+  /** The status entry the row renders, for the revert dialog. */
+  src: FileStatus;
   path: string;
   relPath: string;
   kind: EffectiveKind;
@@ -80,7 +84,8 @@ export function SvnCommitView() {
   const repo = currentRepoRoot();
   const svn = vcsKind(repo) === "svn";
   const [checked, setChecked] = useState<Record<string, boolean>>({});
-  const [selectedFile, setSelectedFile] = useState<string | null>(null);
+  // Click selects; Ctrl/Cmd-click extends — the rows the Revert button acts on.
+  const [selectedFiles, setSelectedFiles] = useState<ReadonlySet<string>>(new Set());
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
@@ -107,6 +112,7 @@ export function SvnCommitView() {
         .map((f) => {
           const kind = effectiveKind(f) as EffectiveKind;
           return {
+            src: f,
             path: f.path,
             relPath: f.relPath,
             kind,
@@ -151,13 +157,36 @@ export function SvnCommitView() {
     });
   };
 
+  const clickRow = (r: Row, extend: boolean) => {
+    setSelectedFiles((current) => {
+      if (!extend) return new Set([r.path]);
+      const next = new Set(current);
+      if (next.has(r.path)) next.delete(r.path);
+      else next.add(r.path);
+      return next;
+    });
+  };
+
+  /** Revert through the dialog: the rows it acts on are the multi-selection (this
+   * row included), each still individually checkable off, and nothing is rolled
+   * back before the dialog's Revert confirms it. */
+  const confirmRevert = (r: Row) => {
+    const targets =
+      selectedFiles.has(r.path) && selectedFiles.size > 1
+        ? rows.filter((row) => selectedFiles.has(row.path))
+        : [r];
+    showSvnRevert(targets.map((row) => row.src), (paths) =>
+      run("revert", () => call(commands.vcsSvnRevert(paths))),
+    );
+  };
+
   const renderRow = (r: Row, root: string | null) => {
     const dir = relativeDir(root ?? repo, r.path);
     return (
       <div
         key={r.path}
-        className={clsx(styles.row, styles.fileRow, selectedFile === r.path && styles.rowSelected)}
-        onClick={() => setSelectedFile(r.path)}
+        className={clsx(styles.row, styles.fileRow, selectedFiles.has(r.path) && styles.rowSelected)}
+        onClick={(e) => clickRow(r, e.metaKey || e.ctrlKey)}
         onDoubleClick={() => openPreview(r)}
       >
         <CheckMark
@@ -187,13 +216,20 @@ export function SvnCommitView() {
           )}
           <button
             className={styles.link}
+            title={
+              selectedFiles.has(r.path) && selectedFiles.size > 1
+                ? tx`Revert ${selectedFiles.size} selected files…`
+                : undefined
+            }
             onClick={(e) => {
               e.stopPropagation();
               // Unversioned: it exists only in the working tree, so rolling it back
-              // means removing it. A scheduled add is un-added; anything else is
-              // restored from BASE.
-              if (r.kind === "untracked") void deleteFiles([r.path]);
-              else void run("revert", () => call(commands.vcsSvnRevert([r.path])));
+              // means removing it; everything else goes through the dialog first.
+              if (r.kind === "untracked" && !(selectedFiles.has(r.path) && selectedFiles.size > 1)) {
+                void deleteFiles([r.path]);
+              } else {
+                confirmRevert(r);
+              }
             }}
           >
             {tx("Revert")}
