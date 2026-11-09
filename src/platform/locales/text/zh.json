@@ -800,7 +800,7 @@
   "Edit Cell": "编辑单元格",
   "Edit Changelist": "编辑更改列表",
   "Edit Changelist…": "编辑更改列表…",
-  "Edit Commit Message…": "编辑提交消息…",
+  "Edit Commit Message…": "编辑修订注释…",
   "Edit Configurations…": "编辑配置…",
   "Edit Configuration…": "编辑配置…",
   "Edit Data": "编辑数据",
@@ -6508,5 +6508,8 @@
   "Set Property": "设置属性",
   "This file has no versioned properties": "该文件没有版本化属性",
   "Property changes are local changes: they are committed with the next commit.": "属性修改属于本地更改，随下一次提交一起提交。",
-  "Select a file or folder first": "请先选择一个文件或文件夹"
+  "Select a file or folder first": "请先选择一个文件或文件夹",
+  "Edit Commit Message": "编辑修订注释",
+  "Show All Affected Files": "显示所有受影响文件",
+  "The file filter limits the list to the history's own files; this shows every file of the revision.": "文件过滤把列表限定为历史自身的文件；点击显示该修订的全部文件。"
 }

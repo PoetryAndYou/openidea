@@ -592,6 +592,22 @@ export function registerVcsActions(): () => void {
       when: VCS,
       keywords: ["svn:log", "commit message", "revprop"],
       run: async ({ arg }) => {
+        // The log's row menu passes the revision itself (rN); a file's menu a path.
+        const raw = typeof arg === "string" ? arg : Array.isArray(arg) ? arg[0] : null;
+        if (raw && /^r\d+$/i.test(raw)) {
+          const revision = raw;
+          try {
+            const repo = currentRepo();
+            const details = await call(commands.vcsLogDetails(repo, revision));
+            showSvnMessage(revision, details.message ?? "", repo, () => {
+              notifications().notify({ group: "vcs", level: "info", title: tx`Commit message of ${revision} updated` });
+              void reloadLog({}).catch(() => {});
+            });
+          } catch (e) {
+            notifications().notify({ group: "vcs", level: "error", title: tx`Could not open the commit message`, body: String(e) });
+          }
+          return;
+        }
         const path = contextPaths(arg)[0];
         if (!path) {
           notifications().notify({ group: "vcs", level: "info", title: "Select a file to edit its revision message" });

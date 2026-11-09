@@ -82,7 +82,7 @@ import {
   useGitLog,
   PAGE,
 } from "./logStore";
-import { logOptions, refLabels, useLogOptions, type LogOptions } from "./logOptions";
+import { logOptions, refLabels, setLogOptions, useLogOptions, type LogOptions } from "./logOptions";
 import { KIND_COLOR, baseName, dirName, fileCount, formatTime, relTo, type EffectiveKind } from "./model";
 import { clearConsole, useVcsConsole } from "./ops";
 import { currentRepo, currentRepoRoot, loadBranches, repoName, useVcs, vcsKind } from "./store";
@@ -1199,6 +1199,7 @@ export function commitMenu(c: Commit, selection: Commit[] = [c]): MenuItem[] {
       },
       { label: "Copy Commit Message", run: () => copyCommitMessage(c) },
       { label: "Browse Repository at Revision", run: () => browseRepositoryAt(c) },
+      { kind: "action", action: "vcs.svnSetMessage", arg: c.id },
     ];
   }
   return [
@@ -2553,6 +2554,16 @@ export function CommitDetails({ commits }: { commits: Commit[] }) {
               {files ? fileCount(changes.length) : ""}
               {many ? " " + tx`in ${chosen.length} commits` : ""}
             </span>
+            {files && onlyAffected && (filters.path || filters.paths?.length) ? (
+              <button
+                type="button"
+                className={styles.linkButton}
+                title={tx("The file filter limits the list to the history's own files; this shows every file of the revision.")}
+                onClick={() => setLogOptions({ showOnlyAffected: false })}
+              >
+                {tx("Show All Affected Files")}
+              </button>
+            ) : null}
             {lineTotals && <LineStats added={lineTotals.added} removed={lineTotals.removed} />}
             <span className={styles.grow} />
             <IconButton
