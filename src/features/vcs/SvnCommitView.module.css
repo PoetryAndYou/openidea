@@ -221,17 +221,17 @@
 }
 
 /* A project section nested inside Changes / Unversioned Files: one tree level
-   below the group header, its files one level below that (24px per level, like
-   .row.fileRow above — not tied to the tree-indent setting). */
+   below the group header, its files one level below that — the same 40px step
+   the flat file rows use (.row.fileRow), not tied to the tree-indent setting. */
 .project {
   display: flex;
   flex-direction: column;
 }
 
 .project .header {
-  padding-left: 28px;
+  padding-left: 44px;
 }
 
 .project .fileRow {
-  padding-left: 52px;
+  padding-left: 84px;
 }
