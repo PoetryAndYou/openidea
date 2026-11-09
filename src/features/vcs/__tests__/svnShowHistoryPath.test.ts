@@ -38,6 +38,34 @@ afterEach(() => {
 });
 
 describe("Show History for a file", () => {
+  it("repairs a history tab that lost its path (earlier session, path-less query)", async () => {
+    const file = "/ws/funauthapp/src/com/acme/Controller.java";
+    useVcs.setState({
+      root: "/ws",
+      repo: "/ws/funauthapp",
+      roots: ["/ws/funauthapp", "/ws/emapol"],
+      kinds: { "/ws/funauthapp": "svn", "/ws/emapol": "svn" },
+    });
+    // A stale tab for this file whose filter carries no path — the state a
+    // restored tab can end up in.
+    openLogTab("history", file);
+    useGitLog.setState({ filters: { ...useGitLog.getState().filters, path: null }, commits: [] });
+    queries.length = 0;
+    const unregister = registerVcsActions();
+    try {
+      try {
+        await getAction("vcs.showHistory")!.run({ arg: [file], ctx: { vcsAvailable: true } });
+      } catch {
+        /* no workbench in this test */
+      }
+      expect(useGitLog.getState().filters.path).toBe(file);
+      await reloadLog({});
+      expect(queries.at(-1)!.query.path).toBe(file);
+    } finally {
+      unregister();
+    }
+  });
+
   it("queries the file's path, not the whole workspace", async () => {
     const file = "/ws/funauthapp/src/com/acme/Controller.java";
     useVcs.setState({

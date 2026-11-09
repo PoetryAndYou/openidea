@@ -387,11 +387,14 @@ export function selectGitTab(id: string) {
 function reassertPathFilter(id: string, target: string) {
   const shown = useGitLog.getState().shownLog === id;
   if (shown) {
+    // Re-query either way: a tab that answered a path-less query keeps those
+    // commits, and the filter alone would not reload them.
     if (useGitLog.getState().filters.path !== target) setLogFilters({ path: target });
+    else void reloadLog({});
     return;
   }
   const view = parked.get(id);
-  if (view && view.filters.path !== target) {
+  if (view) {
     parked.set(id, {
       ...view,
       filters: { ...view.filters, path: target },
