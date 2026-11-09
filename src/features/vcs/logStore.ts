@@ -750,6 +750,20 @@ function rememberRecentFilters(before: LogFilters) {
   }
 }
 
+/** Presents ready-loaded commits in the log (the Subversion in-place file
+ * history) without the paged loader, whose generation bookkeeping swallowed
+ * single-shot loads. */
+export function presentLoadedLog(commits: Commit[], path: string | null) {
+  useGitLog.setState({ seek: null });
+  useGitLog.setState((s) => ({
+    filters: { ...s.filters, path },
+    commits,
+    done: true,
+    loading: false,
+    error: null,
+  }));
+}
+
 export function setLogFilters(patch: Partial<LogFilters>) {
   useGitLog.setState({ seek: null });
   rememberRecentFilters(useGitLog.getState().filters);

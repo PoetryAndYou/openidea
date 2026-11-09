@@ -39,7 +39,7 @@ import { openDialog } from "./dialogs";
 import { gotoChange, rollbackSelectedLines } from "./gutter";
 import { openLocalHistory } from "./localHistoryKind";
 import { showSelectionHistory } from "./selectionHistoryKind";
-import { openLogTab, reloadLog, revealCommit, selectGitTab, setLogFilters, useGitLog } from "./logStore";
+import { openLogTab, presentLoadedLog, reloadLog, revealCommit, selectGitTab, useGitLog } from "./logStore";
 import { isModalCommit, openCommit, pushAfterCommit } from "./commitUi";
 import { allRepos, runRemote } from "./ops";
 import { showPushDialog, showUpdateDialog, type PushTarget } from "./remoteUi";
@@ -500,15 +500,32 @@ export function registerVcsActions(): () => void {
       category: "Git",
       icon: "history",
       when: VCS,
-      run: ({ arg }) => {
+      run: async ({ arg }) => {
         const path = contextPaths(arg)[0];
         if (!path) return;
         showGitWindow();
         if (vcsKind(repoOf(path)) === "svn") {
           // The Subversion log filters in place: the workbench's per-file tab
-          // is a Git surface that never surfaced for Subversion projects.
+          // is a Git surface that never surfaced for Subversion projects, and
+          // the paged loader swallowed this one-shot load. Fetch and present.
+          const repo = repoOf(path) ?? currentRepo();
+          const commits = await call(
+            commands.vcsLog(repo, {
+              branch: null,
+              branches: [],
+              authors: [],
+              path,
+              paths: [],
+              follow: true,
+              author: null,
+              text: null,
+              skip: 0,
+              limit: 1000,
+            }),
+          );
+          showGitWindow();
           selectGitTab("log");
-          setLogFilters({ path });
+          presentLoadedLog(commits, path);
         } else openLogTab("history", path);
       },
     },
