@@ -89,9 +89,14 @@ export function relTo(root: string, path: string): string {
  */
 export function rootOf(path: string, roots: readonly string[]): string | null {
   const p = stripSlash(path);
+  // Windows paths arrive with either separator and either drive-letter case.
+  const windows = /^[a-zA-Z]:[\\/]/.test(p);
+  const key = (s: string) => (windows ? s.replace(/\\/g, "/").toLowerCase() : s);
+  const pk = key(p);
   let best: string | null = null;
-  for (const r of roots) if (p.startsWith(`${r}/`) && (!best || r.length > best.length)) best = r;
-  return best ?? (roots.includes(p) ? p : null);
+  for (const r of roots)
+    if (pk.startsWith(`${key(r)}/`) && (!best || r.length > best.length)) best = r;
+  return best ?? (roots.some((r) => key(r) === pk) ? p : null);
 }
 
 /** Repository name for display: its folder relative to the project, else its folder name. */
