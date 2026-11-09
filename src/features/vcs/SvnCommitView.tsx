@@ -239,7 +239,7 @@ export function SvnCommitView() {
     );
   };
 
-  const group = (key: string, title: string, list: Row[], root: string | null) => {
+  const group = (key: string, title: string, list: Row[]) => {
     if (list.length === 0) return null;
     const all = list.every((r) => r.checked);
     const some = list.some((r) => r.checked);
@@ -268,29 +268,34 @@ export function SvnCommitView() {
             </span>
           </span>
         </div>
-        {open && list.map((r) => renderRow(r, root))}
+        {open && (multi ? sections(list).map(([root, own]) => projectSection(key, root, own)) : list.map((r) => renderRow(r, copies[0] ?? null)))}
       </div>
     );
   };
 
-  // A workspace of several working copies (an Eclipse-style one) groups its
-  // changes per project folder; a single-copy project stays flat.
+  // A workspace of several working copies (an Eclipse-style one) nests each
+  // project folder inside Changes / Unversioned Files, like a directory level;
+  // a single-copy project stays flat.
   const copyOf = (r: Row): string | null =>
     copies
       .filter((c) => r.path === c || r.path.startsWith(`${c}/`))
       .sort((a, b) => b.length - a.length)[0] ?? null;
-  const projectGroup = (root: string | null) => {
-    const own = rows.filter((r) => copyOf(r) === root);
-    const trackedRows = own.filter((r) => r.kind !== "untracked");
-    const untrackedRows = own.filter((r) => r.kind === "untracked");
-    if (!own.length) return null;
-    const key = root ?? "";
+  const sections = (list: Row[]): Array<[string | null, Row[]]> => {
+    const byRoot = new Map<string | null, Row[]>();
+    for (const root of [...copies, null]) {
+      const own = list.filter((r) => copyOf(r) === root);
+      if (own.length) byRoot.set(root, own);
+    }
+    return [...byRoot.entries()];
+  };
+  const projectSection = (groupKey: string, root: string | null, own: Row[]) => {
+    const key = `${groupKey}\0${root ?? ""}`;
     const title = root ? basename(root) : tx("Other Files");
     const all = own.every((r) => r.checked);
     const some = own.some((r) => r.checked);
     const open = !collapsed[key];
     return (
-      <div className={styles.project} key={key || "other"}>
+      <div className={styles.project} key={key}>
         <div className={clsx(styles.row, styles.header, styles.projectHeader)}>
           <button
             className={styles.disclose}
@@ -314,12 +319,7 @@ export function SvnCommitView() {
             </span>
           </span>
         </div>
-        {open && (
-          <>
-            {group(`${key}\0changes`, "Changes", trackedRows, root)}
-            {group(`${key}\0untracked`, "Unversioned Files", untrackedRows, root)}
-          </>
-        )}
+        {open && own.map((r) => renderRow(r, root))}
       </div>
     );
   };
@@ -330,9 +330,8 @@ export function SvnCommitView() {
       <div className={styles.list}>
         {storeError && <div className={styles.err}>status error: {storeError}</div>}
         {rows.length === 0 && <div className={styles.empty}><T>No changes</T></div>}
-        {multi
-          ? [...copies.map((c) => projectGroup(c)), projectGroup(null)]
-          : [group("changes", "Changes", tracked, copies[0] ?? null), group("untracked", "Unversioned Files", untracked, copies[0] ?? null)]}
+        {group("changes", "Changes", tracked)}
+        {group("untracked", "Unversioned Files", untracked)}
       </div>
       <textarea
         className={styles.msg}

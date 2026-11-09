@@ -234,3 +234,17 @@
 .project .group .header {
   padding-inline-start: var(--tree-indent, 16px);
 }
+
+/* A project section nested inside Changes / Unversioned Files. */
+.project {
+  display: flex;
+  flex-direction: column;
+}
+
+.project .header {
+  padding-inline-start: calc(var(--tree-indent, 16px) - 8px);
+}
+
+.project .fileRow {
+  padding-inline-start: calc(var(--tree-indent, 16px) * 2 - 8px);
+}
