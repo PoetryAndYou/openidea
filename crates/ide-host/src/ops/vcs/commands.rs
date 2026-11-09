@@ -1513,6 +1513,14 @@ pub async fn vcs_svn_info(host: &Host, window: &str, repo: Option<PathBuf>) -> I
     .await
 }
 
+/// Every Subversion working copy of the project (its project folders), so the
+/// commit panel can group changes per project. One linear repository shows as
+/// one log root; this lists the copies themselves.
+pub fn vcs_svn_roots(host: &Host, window: &str) -> IdeResult<Vec<ide_core::IpcPath>> {
+    let project = host.project(window)?;
+    Ok(project.svn_repos().all().iter().map(|r| r.root().to_path_buf().into()).collect())
+}
+
 /// `svn update`: brings the working copy to HEAD; local changes are kept and
 /// conflicts left in the tree (`--accept postpone`).
 pub async fn vcs_svn_update(host: &Host, window: &str, repo: Option<PathBuf>) -> IdeResult<ide_vcs_svn::UpdateSummary> {
@@ -1646,6 +1654,7 @@ pub async fn vcs_svn_revert(host: &Host, window: &str, paths: Vec<PathBuf>) -> I
 pub(crate) fn register(d: &mut Dispatcher) {
     d.add("vcs_roots", |c| async move { vcs_roots(&c.host, &c.window) });
     d.add("vcs_svn_info", |c| async move { vcs_svn_info(&c.host, &c.window, c.arg("repo")?).await });
+    d.add("vcs_svn_roots", |c| async move { vcs_svn_roots(&c.host, &c.window) });
     d.add("vcs_svn_update", |c| async move { vcs_svn_update(&c.host, &c.window, c.arg("repo")?).await });
     d.add("vcs_svn_commit", |c| async move {
         vcs_svn_commit(&c.host, &c.window, c.arg("repo")?, c.arg("paths")?, c.arg("message")?).await

@@ -891,6 +891,13 @@ pub async fn vcs_svn_info(
     ide_host::ops::vcs::vcs_svn_info(&state.host, window.label(), repo).await
 }
 
+/// Every Subversion working copy of the project, for grouping changes per project.
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_roots(window: Window, state: State<'_, AppState>) -> IdeResult<Vec<ide_core::IpcPath>> {
+    ide_host::ops::vcs::vcs_svn_roots(&state.host, window.label())
+}
+
 /// `svn update`: brings the working copy to HEAD, keeping local changes.
 #[tauri::command]
 #[specta::specta]

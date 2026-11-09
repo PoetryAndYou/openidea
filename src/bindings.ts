@@ -496,6 +496,8 @@ export const commands = {
 	vcsRoots: () => typedError<VcsRoot[], IdeError>(__TAURI_INVOKE("vcs_roots")),
 	/**  `svn info` of the project's working copy. */
 	vcsSvnInfo: (repo: string | null) => typedError<SvnInfo, IdeError>(__TAURI_INVOKE("vcs_svn_info", { repo })),
+	/**  Every Subversion working copy of the project, for grouping changes per project. */
+	vcsSvnRoots: () => typedError<IpcPath[], IdeError>(__TAURI_INVOKE("vcs_svn_roots")),
 	/**  `svn update`: brings the working copy to HEAD, keeping local changes. */
 	vcsSvnUpdate: (repo: string | null) => typedError<UpdateSummary, IdeError>(__TAURI_INVOKE("vcs_svn_update", { repo })),
 	/**  SVN commit of the selected paths with a message; returns the new revision (`rN`). */
