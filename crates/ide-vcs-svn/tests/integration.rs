@@ -326,3 +326,51 @@ fn workspace_paths_are_project_relative() {
     rels.sort();
     assert_eq!(rels, vec!["projA/src/Main.java", "projB/src/Main.java"]);
 }
+
+/// A file's history lists only the revisions that touched it, whatever working
+/// copy of the repository answers (Show History in a multi-project workspace).
+#[test]
+fn file_history_lists_only_its_revisions_from_every_copy() {
+    if !available() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let base = dunce::canonicalize(dir.path()).unwrap();
+    let repository = base.join("repo");
+    run("svnadmin", &["create", repository.to_str().unwrap()], &base);
+    let ws = base.join("ws");
+    std::fs::create_dir_all(&ws).unwrap();
+    for name in ["projA", "projB"] {
+        let seed = base.join("seed").join(name);
+        write(&seed.join("src/Main.java"), "v1\n");
+        let url = format!("file://{}/{}", repository.display(), name);
+        run("svn", &["import", "-q", seed.to_str().unwrap(), &url, "-m", "import"], &base);
+        run("svn", &["checkout", "-q", &url, ws.join(name).to_str().unwrap()], &base);
+    }
+
+    // A revision that touched only projA, then one that touched only projB.
+    let a = ws.join("projA/src/Main.java");
+    write(&a, "v2\n");
+    run("svn", &["commit", "-q", "-m", "projA only"], &ws.join("projA"));
+    let b = ws.join("projB/src/Main.java");
+    write(&b, "v2\n");
+    run("svn", &["commit", "-q", "-m", "projB only"], &ws.join("projB"));
+
+    let repos = SvnRepos::discover(&ws, &|_: &Path| false).unwrap();
+    let query = LogQuery { path: Some(ide_core::IpcPath::from(b.clone())), ..Default::default() };
+    // Each working copy answers for that path with the file's own revisions
+    // (its creation and the projB edit), never the projA-only commit.
+    for repo in repos.all() {
+        let entries = repo.log(&query).unwrap();
+        assert!(
+            entries.iter().any(|c| c.summary == "projB only"),
+            "file history from {} lists the file's revision",
+            repo.root().display()
+        );
+        assert!(
+            !entries.iter().any(|c| c.summary == "projA only"),
+            "file history from {} leaves out another project's revision",
+            repo.root().display()
+        );
+    }
+}
