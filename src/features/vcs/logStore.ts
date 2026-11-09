@@ -558,7 +558,13 @@ export function installGitLog(): () => void {
       restoreLogSession(s.root);
       syncBookmarks();
       restoring = false;
-    } else if (s.roots !== prev.roots) {
+    } else if (
+      s.roots !== prev.roots &&
+      (s.roots.length !== prev.roots.length || s.roots.some((root, i) => root !== prev.roots[i]))
+    ) {
+      // A status refresh rebuilds the roots array without changing it; reloading
+      // on every such tick cancelled each load mid-flight (generation bump) and
+      // left the log empty. Only a real change reloads.
       for (const [id, view] of parked) parked.set(id, { ...freshView(view.filters), options: view.options });
       void reloadLog();
     }
