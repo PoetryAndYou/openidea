@@ -5,7 +5,7 @@
  * files) with the product's CheckMark boxes, file-type icons and
  * basename-first rows; double-click previews the working diff against BASE.
  */
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import clsx from "clsx";
 import { currentRepoRoot, scheduleRefresh, useVcs, vcsKind } from "./store";
 import { effectiveKind, KIND_COLOR, type EffectiveKind } from "./model";
@@ -85,6 +85,20 @@ export function SvnCommitView() {
   const [message, setMessage] = useState("");
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // The workspace's working copies, to group changes per project folder.
+  const [copies, setCopies] = useState<string[]>([]);
+  const rootsVersion = useVcs((s) => s.roots.length);
+  useEffect(() => {
+    let alive = true;
+    void call(commands.vcsSvnRoots())
+      .then((roots) => {
+        if (alive) setCopies(roots.map((r) => `${r}`).filter((r) => !r.endsWith("/")));
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, [rootsVersion]);
 
   const rows = useMemo<Row[]>(
     () =>
@@ -137,8 +151,8 @@ export function SvnCommitView() {
     });
   };
 
-  const renderRow = (r: Row) => {
-    const dir = relativeDir(repo, r.path);
+  const renderRow = (r: Row, root: string | null) => {
+    const dir = relativeDir(root ?? repo, r.path);
     return (
       <div
         key={r.path}
@@ -189,7 +203,7 @@ export function SvnCommitView() {
     );
   };
 
-  const group = (key: string, title: string, list: Row[]) => {
+  const group = (key: string, title: string, list: Row[], root: string | null) => {
     if (list.length === 0) return null;
     const all = list.every((r) => r.checked);
     const some = list.some((r) => r.checked);
@@ -218,18 +232,71 @@ export function SvnCommitView() {
             </span>
           </span>
         </div>
-        {open && list.map(renderRow)}
+        {open && list.map((r) => renderRow(r, root))}
       </div>
     );
   };
+
+  // A workspace of several working copies (an Eclipse-style one) groups its
+  // changes per project folder; a single-copy project stays flat.
+  const copyOf = (r: Row): string | null =>
+    copies
+      .filter((c) => r.path === c || r.path.startsWith(`${c}/`))
+      .sort((a, b) => b.length - a.length)[0] ?? null;
+  const projectGroup = (root: string | null) => {
+    const own = rows.filter((r) => copyOf(r) === root);
+    const trackedRows = own.filter((r) => r.kind !== "untracked");
+    const untrackedRows = own.filter((r) => r.kind === "untracked");
+    if (!own.length) return null;
+    const key = root ?? "";
+    const title = root ? basename(root) : tx("Other Files");
+    const all = own.every((r) => r.checked);
+    const some = own.some((r) => r.checked);
+    const open = !collapsed[key];
+    return (
+      <div className={styles.project} key={key || "other"}>
+        <div className={clsx(styles.row, styles.header, styles.projectHeader)}>
+          <button
+            className={styles.disclose}
+            aria-expanded={open}
+            aria-label={open ? "Collapse" : "Expand"}
+            onClick={() => setCollapsed((c) => ({ ...c, [key]: open }))}
+          >
+            <Icon name={open ? "chevron-down" : "chevron-right"} size={12} />
+          </button>
+          <CheckMark
+            checked={all}
+            indeterminate={!all && some}
+            label={`Include all ${title} changes in commit`}
+            onToggle={() => toggleGroup(own, !all)}
+          />
+          <Icon name="folder" size={14} />
+          <span className={styles.groupTitle}>
+            {title}
+            <span className={styles.count}>
+              {own.length} {own.length === 1 ? tx("file") : tx("files")}
+            </span>
+          </span>
+        </div>
+        {open && (
+          <>
+            {group(`${key}\0changes`, "Changes", trackedRows, root)}
+            {group(`${key}\0untracked`, "Unversioned Files", untrackedRows, root)}
+          </>
+        )}
+      </div>
+    );
+  };
+  const multi = copies.length > 1;
 
   return (
     <div className={styles.root}>
       <div className={styles.list}>
         {storeError && <div className={styles.err}>status error: {storeError}</div>}
         {rows.length === 0 && <div className={styles.empty}><T>No changes</T></div>}
-        {group("changes", "Changes", tracked)}
-        {group("untracked", "Unversioned Files", untracked)}
+        {multi
+          ? [...copies.map((c) => projectGroup(c)), projectGroup(null)]
+          : [group("changes", "Changes", tracked, copies[0] ?? null), group("untracked", "Unversioned Files", untracked, copies[0] ?? null)]}
       </div>
       <textarea
         className={styles.msg}

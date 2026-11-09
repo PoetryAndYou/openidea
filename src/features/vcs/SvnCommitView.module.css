@@ -219,3 +219,18 @@
   color: var(--fg-muted);
   font-size: 12px;
 }
+
+/* A workspace section: one project (working copy) and its changes. */
+.project {
+  display: flex;
+  flex-direction: column;
+}
+
+.projectHeader {
+  padding-inline-start: 0;
+  font-weight: 600;
+}
+
+.project .group .header {
+  padding-inline-start: var(--tree-indent, 16px);
+}
