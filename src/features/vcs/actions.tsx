@@ -133,6 +133,16 @@ function changedPaths(arg: unknown): string[] {
 }
 
 /** Files the current context refers to: argument, commit view selection, or the active file. */
+/** Reflects an edited revision message in the presented log without a reload
+ * (the paged loader swallows path-filtered reloads). */
+function patchCommitMessage(revision: string, text: string) {
+  useGitLog.setState((s) => ({
+    commits: s.commits.map((c) =>
+      c.id === revision ? { ...c, message: text, summary: text.split("\n")[0] ?? "" } : c,
+    ),
+  }));
+}
+
 function contextPaths(arg: unknown): string[] {
   const changed = changedPaths(arg);
   if (changed.length) return changed;
@@ -721,9 +731,9 @@ export function registerVcsActions(): () => void {
           try {
             const repo = currentRepo();
             const details = await call(commands.vcsLogDetails(repo, revision));
-            showSvnMessage(revision, details.message ?? "", repo, () => {
+            showSvnMessage(revision, details.message ?? "", repo, (text) => {
+              patchCommitMessage(revision, text);
               notifications().notify({ group: "vcs", level: "info", title: tx`Commit message of ${revision} updated` });
-              void reloadLog({}).catch(() => {});
             });
           } catch (e) {
             notifications().notify({ group: "vcs", level: "error", title: tx`Could not open the commit message`, body: String(e) });
@@ -740,13 +750,13 @@ export function registerVcsActions(): () => void {
           // file's menu edits, as IDEA's Subversion menu does.
           const revision = await call(commands.vcsSvnFileRevision(path));
           const details = await call(commands.vcsLogDetails(repoOf(path) ?? currentRepo(), revision));
-          showSvnMessage(revision, details.message ?? "", repoOf(path) ?? null, () => {
+          showSvnMessage(revision, details.message ?? "", repoOf(path) ?? null, (text) => {
+            patchCommitMessage(revision, text);
             notifications().notify({
               group: "vcs",
               level: "info",
               title: tx`Commit message of ${revision} updated`,
             });
-            void reloadLog({}).catch(() => {});
           });
         } catch (e) {
           notifications().notify({ group: "vcs", level: "error", title: tx`Could not open the commit message`, body: String(e) });
