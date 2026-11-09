@@ -1392,9 +1392,11 @@ function CommitList() {
       rows.reduce((width, row) => Math.max(width, row.width * LANE), 100) +
       columns.reduce(
         (width, column) => width + (opts.columnWidths[column.id] ?? column.width ?? 120),
-        opts.showRepository && useVcs.getState().roots.length > 1 ? 220 : 120,
+        // A floor for the subject, which truncates; a wide reserve pushed the
+        // author and date columns out of narrow panes.
+        60,
       ),
-    [rows, columns, opts.columnWidths, opts.showRepository],
+    [rows, columns, opts.columnWidths],
   );
   const filterBranches = useGitLog((s) => s.filters.branches);
   const currentBranch = useVcs((s) => s.branch?.head ?? null);
