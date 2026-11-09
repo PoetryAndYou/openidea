@@ -383,6 +383,25 @@ export function selectGitTab(id: string) {
   useGitLog.setState({ tab: id });
 }
 
+/** Makes a history tab filter to its own file again, dropping commits queried without it. */
+function reassertPathFilter(id: string, target: string) {
+  const shown = useGitLog.getState().shownLog === id;
+  if (shown) {
+    if (useGitLog.getState().filters.path !== target) setLogFilters({ path: target });
+    return;
+  }
+  const view = parked.get(id);
+  if (view && view.filters.path !== target) {
+    parked.set(id, {
+      ...view,
+      filters: { ...view.filters, path: target },
+      commits: [],
+      loading: false,
+      done: false,
+    });
+  }
+}
+
 let tabSeq = 0;
 
 /**
@@ -432,6 +451,10 @@ export function openLogTab(
             : t.target === target && t.repo === repo),
       );
   if (existing) {
+    // A history tab restored from an earlier session (or one that answered a
+    // path-less query) may have lost its path filter; Show History reasserts it
+    // rather than showing the whole repository's log in a file's tab.
+    if (kind === "history") reassertPathFilter(existing.id, target);
     selectGitTab(existing.id);
     return existing.id;
   }
