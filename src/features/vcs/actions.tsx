@@ -525,7 +525,12 @@ export function registerVcsActions(): () => void {
           );
           showGitWindow();
           selectGitTab("log");
-          presentLoadedLog(commits, path);
+          // Tag like the paged loader does, so the selection's keys (repo-prefixed)
+          // match these commits and the changed-files pane finds them.
+          presentLoadedLog(
+            commits.map((commit) => ({ ...commit, repo })),
+            path,
+          );
         } else openLogTab("history", path);
       },
     },
