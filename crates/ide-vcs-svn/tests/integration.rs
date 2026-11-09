@@ -417,3 +417,45 @@ fn revision_message_is_read_and_replaced_through_the_client() {
     repo.set_revision_message(&revision, "changed message").unwrap();
     assert_eq!(repo.log_details(&revision).unwrap().message.trim(), "changed message");
 }
+
+/// The property editor's client calls, IDEA's compare and locking.
+#[test]
+fn properties_compare_and_lock_work_through_the_client() {
+    if !available() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let base = dunce::canonicalize(dir.path()).unwrap();
+    let repository = base.join("repo");
+    run("svnadmin", &["create", repository.to_str().unwrap()], &base);
+    let url = format!("file://{}", repository.display());
+    let wc = base.join("wc");
+    run("svn", &["checkout", "-q", &url, wc.to_str().unwrap()], &base);
+    write(&wc.join("a.txt"), "one\n");
+    run("svn", &["add", "-q", "a.txt"], &wc);
+    run("svn", &["commit", "-q", "-m", "first"], &wc);
+
+    let repo = SvnRepo::discover(&wc).unwrap().expect("a working copy");
+    let folder = wc.clone();
+    let file = wc.join("a.txt");
+
+    // Properties: set, read back, delete.
+    assert!(repo.properties(&folder).unwrap().is_empty());
+    repo.set_property(&folder, "svn:ignore", "*.log\nbuild\n").unwrap();
+    let found = repo.properties(&folder).unwrap();
+    // svn keeps the trailing newline of the stored value.
+    let ignore = found.iter().find(|p| p.name == "svn:ignore").map(|p| p.value.trim_end().to_string());
+    assert_eq!(ignore, Some("*.log\nbuild".to_string()));
+    repo.delete_property(&folder, "svn:ignore").unwrap();
+    assert!(repo.properties(&folder).unwrap().is_empty());
+
+    // Compare with the latest repository version.
+    write(&file, "two\n");
+    let diff = repo.diff_against(&[file.clone()], "HEAD").unwrap();
+    assert!(diff.contains("+two"), "{diff}");
+
+    // Lock and unlock.
+    let locked = repo.lock(&[file.clone()], None).unwrap();
+    assert!(locked.to_lowercase().contains("locked"), "{locked}");
+    assert!(repo.unlock(&[file.clone()]).is_ok());
+}
