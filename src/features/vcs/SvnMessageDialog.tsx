@@ -11,11 +11,12 @@ import { call, commands } from "@/platform/ipc";
 import { openDialog } from "./dialogs";
 import styles from "./SvnMessageDialog.module.css";
 
-export function showSvnMessage(revision: string, message: string, onSaved: () => void) {
+export function showSvnMessage(revision: string, message: string, repo: string | null, onSaved: () => void) {
   openDialog((close) => (
     <SvnMessageDialog
       revision={revision}
       message={message}
+      repo={repo}
       onClose={close}
       onSaved={() => {
         close();
@@ -28,11 +29,13 @@ export function showSvnMessage(revision: string, message: string, onSaved: () =>
 function SvnMessageDialog({
   revision,
   message,
+  repo,
   onClose,
   onSaved,
 }: {
   revision: string;
   message: string;
+  repo: string | null;
   onClose: () => void;
   onSaved: () => void;
 }) {
@@ -44,7 +47,7 @@ function SvnMessageDialog({
     setBusy(true);
     setError(null);
     try {
-      await call(commands.vcsSvnSetMessage(null, revision, text));
+      await call(commands.vcsSvnSetMessage(repo, revision, text));
       onSaved();
     } catch (e) {
       const raw = e instanceof Error ? e.message : String(e);

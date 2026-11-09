@@ -563,7 +563,7 @@ export function registerVcsActions(): () => void {
           // file's menu edits, as IDEA's Subversion menu does.
           const revision = await call(commands.vcsSvnFileRevision(path));
           const details = await call(commands.vcsLogDetails(repoOf(path) ?? currentRepo(), revision));
-          showSvnMessage(revision, details.message ?? "", () => {
+          showSvnMessage(revision, details.message ?? "", repoOf(path) ?? null, () => {
             notifications().notify({
               group: "vcs",
               level: "info",

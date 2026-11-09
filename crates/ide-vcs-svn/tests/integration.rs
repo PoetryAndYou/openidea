@@ -374,3 +374,46 @@ fn file_history_lists_only_its_revisions_from_every_copy() {
         );
     }
 }
+
+/// `Set Revision Properties…`: the revision that last changed a file, and its
+/// message replaced through the real client code (both outcomes).
+#[test]
+fn revision_message_is_read_and_replaced_through_the_client() {
+    if !available() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let base = dunce::canonicalize(dir.path()).unwrap();
+    let repository = base.join("repo");
+    run("svnadmin", &["create", repository.to_str().unwrap()], &base);
+    let url = format!("file://{}", repository.display());
+    let wc = base.join("wc");
+    run("svn", &["checkout", "-q", &url, wc.to_str().unwrap()], &base);
+    write(&wc.join("a.txt"), "one\n");
+    run("svn", &["add", "-q", "a.txt"], &wc);
+    run("svn", &["commit", "-q", "-m", "first message"], &wc);
+    write(&wc.join("a.txt"), "two\n");
+    run("svn", &["commit", "-q", "-m", "second message"], &wc);
+
+    let repo = SvnRepo::discover(&wc).unwrap().expect("a working copy");
+    let path = wc.join("a.txt");
+    let revision = repo.last_changed_revision(&path).unwrap().expect("the file has history");
+    assert_eq!(repo.log_details(&revision).unwrap().message.trim(), "second message");
+
+    // A repository that does not allow revision-property edits refuses.
+    let without_hook = repo.set_revision_message(&revision, "changed").unwrap_err();
+    assert!(format!("{without_hook}").contains("E165006"), "{without_hook}");
+
+    // With the hook, the message is replaced and reads back changed.
+    let hook = repository.join("hooks/pre-revprop-change");
+    write(&hook, "#!/bin/sh\nexit 0\n");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        let mut perms = std::fs::metadata(&hook).unwrap().permissions();
+        perms.set_mode(0o755);
+        std::fs::set_permissions(&hook, perms).unwrap();
+    }
+    repo.set_revision_message(&revision, "changed message").unwrap();
+    assert_eq!(repo.log_details(&revision).unwrap().message.trim(), "changed message");
+}

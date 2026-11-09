@@ -14,12 +14,13 @@ use crate::apply_git_executable;
 use ide_vcs_svn::SvnRepo;
 
 /// The SVN working copy a repo-scoped command targets: the given root when it
-/// is an SVN root, else the primary one of a project without Git repositories.
+/// is an SVN root, else the primary one. A workspace may hold a stray Git
+/// checkout (a cloned reference folder), so Git repositories do not disqualify
+/// the fallback.
 fn svn_target(project: &Project, repo: Option<&Path>) -> Option<std::sync::Arc<SvnRepo>> {
     match repo {
         Some(root) => project.svn_repos().at_root(root).cloned(),
-        None if project.repos().is_empty() => project.svn_repos().all().first().cloned(),
-        None => None,
+        None => project.svn_repos().all().first().cloned(),
     }
 }
 
@@ -469,7 +470,12 @@ pub async fn vcs_log(host: &Host, window: &str, repo: Option<PathBuf>, query: Lo
         // A Subversion project serves one linear history whatever working copy is
         // named: every copy answers and the results merge (the copies can be
         // subtrees of one repository, so one atomic commit arrives once per URL).
-        if !p.svn_repos().is_empty() {
+        // A Git project that merely holds an SVN copy keeps its Git log.
+        let svn_project = match repo.as_deref() {
+            Some(root) => p.svn_repos().at_root(root).is_some(),
+            None => p.repos().is_empty() && !p.svn_repos().is_empty(),
+        };
+        if svn_project {
             let svns = p.svn_repos();
             let q = query.clone();
             return blocking(move || {
@@ -1689,9 +1695,7 @@ pub(crate) fn register(d: &mut Dispatcher) {
     d.add("vcs_roots", |c| async move { vcs_roots(&c.host, &c.window) });
     d.add("vcs_svn_info", |c| async move { vcs_svn_info(&c.host, &c.window, c.arg("repo")?).await });
     d.add("vcs_svn_roots", |c| async move { vcs_svn_roots(&c.host, &c.window) });
-    d.add("vcs_svn_file_revision", |c| async move {
-        vcs_svn_file_revision(&c.host, &c.window, c.arg("path")?).await
-    });
+    d.add("vcs_svn_file_revision", |c| async move { vcs_svn_file_revision(&c.host, &c.window, c.arg("path")?).await });
     d.add("vcs_svn_set_message", |c| async move {
         vcs_svn_set_message(&c.host, &c.window, c.arg("repo")?, c.arg("revision")?, c.arg("message")?).await
     });
