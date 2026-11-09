@@ -39,7 +39,7 @@ import { openDialog } from "./dialogs";
 import { gotoChange, rollbackSelectedLines } from "./gutter";
 import { openLocalHistory } from "./localHistoryKind";
 import { showSelectionHistory } from "./selectionHistoryKind";
-import { openLogTab, reloadLog, revealCommit, selectGitTab, useGitLog } from "./logStore";
+import { openLogTab, reloadLog, revealCommit, selectGitTab, setLogFilters, useGitLog } from "./logStore";
 import { isModalCommit, openCommit, pushAfterCommit } from "./commitUi";
 import { allRepos, runRemote } from "./ops";
 import { showPushDialog, showUpdateDialog, type PushTarget } from "./remoteUi";
@@ -53,7 +53,7 @@ import {
   showRebaseDialog,
   showWorktrees,
 } from "./gitMenuDialogs";
-import { currentRepo, refreshNow, repoName, repoOf, useVcs } from "./store";
+import { currentRepo, refreshNow, repoName, repoOf, useVcs, vcsKind } from "./store";
 import { tx } from "@/platform/i18n";
 
 import { addToIgnore } from "./ignore";
@@ -503,11 +503,13 @@ export function registerVcsActions(): () => void {
       run: ({ arg }) => {
         const path = contextPaths(arg)[0];
         if (!path) return;
-        // Show the window first: raising it afterwards resets the tool window
-        // to its remembered tab, hiding the history tab this just opened (and
-        // re-focusing its search box).
         showGitWindow();
-        openLogTab("history", path);
+        if (vcsKind(repoOf(path)) === "svn") {
+          // The Subversion log filters in place: the workbench's per-file tab
+          // is a Git surface that never surfaced for Subversion projects.
+          selectGitTab("log");
+          setLogFilters({ path });
+        } else openLogTab("history", path);
       },
     },
     {
