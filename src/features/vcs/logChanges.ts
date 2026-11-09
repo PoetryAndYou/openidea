@@ -14,6 +14,7 @@ import { baseName } from "./model";
 import { readWorkingText, runOp, saveAll, writeFileText } from "./ops";
 import { reportApply } from "./shelf";
 import { currentRepoRoot, vcsKind } from "./store";
+import { useProject } from "@/platform/project";
 import { commitRepo } from "./multiRoot";
 import { repositoryPath } from "./repositoryPaths";
 import { confirmDialog } from "./dialogs";
@@ -190,8 +191,12 @@ export function filterPatch(patch: string, paths: ReadonlySet<string>): string {
 /** Absolute path of a repository-relative one. */
 export function absolutePath(rel: string, root = currentRepoRoot()): string {
   // Subversion serves its paths relative to the project (several working copies);
-  // joining a copy's root onto them produced paths that matched nothing.
-  if (vcsKind(root) === "svn") return rel;
+  // joining one copy's root onto them produced paths that matched nothing. The
+  // project root is the base they belong to.
+  if (vcsKind(root) === "svn") {
+    const project = useProject.getState().project;
+    return project ? repositoryPath(project.root, rel) : rel;
+  }
   return repositoryPath(root, rel);
 }
 
