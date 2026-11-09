@@ -296,7 +296,7 @@ export function SvnCommitView() {
     const open = !collapsed[key];
     return (
       <div className={styles.project} key={key}>
-        <div className={clsx(styles.row, styles.header, styles.projectHeader)}>
+        <div className={clsx(styles.row, styles.header)}>
           <button
             className={styles.disclose}
             aria-expanded={open}
