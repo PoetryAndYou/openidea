@@ -232,6 +232,30 @@ impl SvnRepo {
         })
     }
 
+    /// The revision that last changed `path`, `rN`; `None` for a path with no history.
+    pub fn last_changed_revision(&self, path: &Path) -> IdeResult<Option<String>> {
+        let target = self.log_target(Some(path));
+        let xml = self.run(&["log", "--xml", "-l", "1", &target])?;
+        Ok(parse_log(&xml)?.first().map(|commit| commit.id.clone()))
+    }
+
+    /// Replaces a revision's commit message (`svn:log`, a revision property). The
+    /// server must allow it (`pre-revprop-change` hook).
+    pub fn set_revision_message(&self, revision: &str, message: &str) -> IdeResult<()> {
+        let rev = normalize_rev(revision);
+        let url = self.repo_root_url()?;
+        // The value goes through a file: a message may begin with '-'.
+        let path = std::env::temp_dir().join(format!("openidea-svn-log-{}.txt", std::process::id()));
+        std::fs::write(&path, message).map_err(|e| IdeError::internal(format!("cannot write {path:?}: {e}")))?;
+        let out = self.output(&["propset", "--revprop", "-r", &rev, "svn:log", "-F", &path.to_string_lossy(), &url]);
+        let _ = std::fs::remove_file(&path);
+        let out = out?;
+        if !out.status.success() {
+            return Err(IdeError::internal(format!("svn: {}", stderr_excerpt(&out.stderr))));
+        }
+        Ok(())
+    }
+
     /// The text of `path` at `rev` (`BASE` when `None`); `Ok(None)` when it does not exist there.
     pub fn file_at(&self, path: &Path, rev: Option<&str>) -> IdeResult<Option<String>> {
         let rev = normalize_rev(rev.unwrap_or(""));
