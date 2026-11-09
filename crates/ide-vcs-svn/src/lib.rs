@@ -441,8 +441,8 @@ impl SvnRepo {
         let Some(path) = path else {
             return self.url_of("").unwrap_or_else(|| self.root.to_string_lossy().into_owned());
         };
-        if let Ok(rel) = path.strip_prefix(&self.root)
-            && let Some(url) = self.url_of(&rel_string(rel))
+        if let Some(rel) = strip_prefix_lenient(&self.root, path)
+            && let Some(url) = self.url_of(&rel_string(&rel))
         {
             return url;
         }
@@ -971,6 +971,26 @@ fn rel_string(path: &Path) -> String {
         })
         .collect::<Vec<_>>()
         .join("/")
+}
+
+/// `path` below `base`: `Path::strip_prefix`, and on Windows also across
+/// separator and drive-letter-case differences (the UI and the discovery walk
+/// may spell the same folder differently).
+fn strip_prefix_lenient(base: &Path, path: &Path) -> Option<PathBuf> {
+    if let Ok(rel) = path.strip_prefix(base) {
+        return Some(rel.to_path_buf());
+    }
+    if !cfg!(windows) {
+        return None;
+    }
+    let lower = |p: &Path| p.components().map(|c| c.as_os_str().to_string_lossy().to_lowercase()).collect::<Vec<_>>();
+    let b = lower(base);
+    let p = lower(path);
+    if p.len() > b.len() && p[..b.len()] == b {
+        let rel: PathBuf = path.components().skip(b.len()).collect();
+        return Some(rel);
+    }
+    None
 }
 
 /// A repository-absolute path from `svn log -v` (e.g. `/trunk/a.c`) relative to `base`
