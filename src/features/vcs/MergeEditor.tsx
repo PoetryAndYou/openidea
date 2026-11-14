@@ -554,6 +554,13 @@ export function MergeEditor({ input }: { input: EditorInput }) {
     // ancestor, which must be this editor for the footer and toolbar buttons to keep it the
     // focused merge editor their actions run in.
     tabIndex: -1,
+    onMouseDownCapture: () => {
+      // Belt and braces: arm the host on mousedown, which runs before the click's
+      // action even when no focus change follows (WebKit buttons don't focus).
+      setFocusedMergeEditor(actionHost);
+      setFocusedDiffNavigator(nav);
+      setContext("diffEditorFocus", true);
+    },
     onFocusCapture: (e: React.FocusEvent<HTMLDivElement>) => {
       const target = e.target as Node;
       if (oursRef.current?.contains(target)) paneRef.current = "left";
