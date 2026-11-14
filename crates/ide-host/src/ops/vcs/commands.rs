@@ -656,8 +656,10 @@ pub async fn vcs_commit_files(
     let project = LogAccess::new(host, window, repo.as_deref());
     if let Some(p) = project.project.clone() {
         if let Some(svn) = svn_target(&p, repo.as_deref()) {
+            tracing::info!("SVNCF commit_files repo={repo:?} commit={commit}");
             return blocking(move || {
                 let mut files = svn.commit_files(&commit)?;
+                tracing::info!("SVNCF -> {} files", files.len());
                 // Repository paths (`/projA/src/Main.java`) become project paths,
                 // whatever working copy the log entry was served from.
                 let svns = p.svn_repos();
@@ -1639,6 +1641,25 @@ pub async fn vcs_svn_unlock(host: &Host, window: &str, paths: Vec<PathBuf>) -> I
             repo.unlock(&paths)?;
         }
         Ok(())
+    })
+    .await
+}
+
+/// Merges changes from a branch URL into the working copy (`svn merge`).
+pub async fn vcs_svn_merge(
+    host: &Host,
+    window: &str,
+    repo: Option<PathBuf>,
+    from: String,
+    range: Option<String>,
+    dry_run: bool,
+) -> IdeResult<String> {
+    host.require_trust(window)?;
+    let project = host.project(window)?;
+    blocking(move || {
+        let svn = svn_target(&project, repo.as_deref())
+            .ok_or_else(|| ide_core::IdeError::unavailable("project has no Subversion working copy"))?;
+        svn.merge(&from, range.as_deref(), dry_run)
     })
     .await
 }

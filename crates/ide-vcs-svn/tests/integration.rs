@@ -459,3 +459,48 @@ fn properties_compare_and_lock_work_through_the_client() {
     assert!(locked.to_lowercase().contains("locked"), "{locked}");
     assert!(repo.unlock(&[file.clone()]).is_ok());
 }
+
+/// Merging a branch into the working copy applies the branch's changes
+/// (`svn merge`), the way IDEA's Subversion "Merge Source" does.
+#[test]
+fn merge_applies_branch_changes_to_the_working_copy() {
+    if !available() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let base = dunce::canonicalize(dir.path()).unwrap();
+    let repository = base.join("repo");
+    run("svnadmin", &["create", repository.to_str().unwrap()], &base);
+    let url = format!("file://{}", repository.display());
+    let wc = base.join("wc");
+    run("svn", &["checkout", "-q", &url, wc.to_str().unwrap()], &base);
+    write(&wc.join("a.txt"), "one\n");
+    run("svn", &["add", "-q", "a.txt"], &wc);
+    run("svn", &["commit", "-q", "-m", "trunk"], &wc);
+
+    // Branch, then commit a change on the branch only.
+    let branch = format!("{}/branch", url);
+    run("svn", &["copy", "-q", "-m", "branch", &url, &branch], &base);
+    let branch_wc = base.join("branch-wc");
+    run("svn", &["checkout", "-q", &branch, branch_wc.to_str().unwrap()], &base);
+    write(&branch_wc.join("a.txt"), "branch change\n");
+    run("svn", &["commit", "-q", "-m", "on branch"], &branch_wc);
+
+    let repo = SvnRepo::discover(&wc).unwrap().expect("a working copy");
+    // Trunk still has the old content…
+    assert_eq!(std::fs::read_to_string(wc.join("a.txt")).unwrap(), "one\n");
+    // …a dry run reports what would merge without touching anything…
+    let dry = repo.merge(&branch, None, true).unwrap();
+    assert!(dry.contains("a.txt"), "{dry}");
+    assert_eq!(std::fs::read_to_string(wc.join("a.txt")).unwrap(), "one\n");
+    // …and the merge applies the branch's change.
+    let output = repo.merge(&branch, None, false).unwrap();
+    assert!(output.contains("a.txt"), "{output}");
+    assert_eq!(std::fs::read_to_string(wc.join("a.txt")).unwrap(), "branch change\n");
+    // …as a working-copy modification…
+    let status = repo.status().unwrap();
+    assert!(status.iter().any(|f| f.rel_path == "a.txt" && f.unstaged == Some(ChangeKind::Modified)));
+    // The merge lands as a working-copy modification, ready to commit.
+    let status = repo.status().unwrap();
+    assert!(status.iter().any(|f| f.rel_path == "a.txt" && f.unstaged == Some(ChangeKind::Modified)));
+}

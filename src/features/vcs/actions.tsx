@@ -1,7 +1,7 @@
 import { showShelfDiff } from "./shelf";
 import { commitRepo } from "./multiRoot";
 /** VCS actions (ids match keymaps/intellij-macos.ts where bound). */
-import { registerActions, type Action } from "@/platform/actions";
+import { executeAction, registerActions, type Action } from "@/platform/actions";
 import { getContext } from "@/platform/context";
 import { activeEditor, editorsFor } from "@/editor/api";
 import { Menu, type MenuItem } from "@/ui";
@@ -274,7 +274,10 @@ export function registerVcsActions(): () => void {
       category: "Git",
       when: VCS,
       keywords: ["merge branch"],
-      run: showMergeDialog,
+      run: async ({ arg }) => {
+        if (vcsKind(currentRepo()) === "svn") await executeAction("vcs.svnMerge", arg);
+        else showMergeDialog();
+      },
     },
     {
       id: "vcs.rebase",
@@ -752,6 +755,42 @@ export function registerVcsActions(): () => void {
         await call(commands.vcsSvnRelocate(currentRepo(), url.trim()));
         notifications().notify({ group: "vcs", level: "info", title: tx`Relocated to ${url.trim()}` });
         await refreshNow();
+      },
+    },
+    {
+      id: "vcs.svnMerge",
+      title: "Merge Source…",
+      category: "Subversion",
+      icon: "merge",
+      when: VCS,
+      keywords: ["svn merge", "branch"],
+      run: async () => {
+        const from = await promptInput({
+          title: "Merge Source",
+          label: "Branch URL to merge from (e.g. …/branches/my-feature[@123])",
+          initial: "",
+        });
+        if (!from?.trim()) return;
+        const range = await promptInput({
+          title: "Merge Source",
+          label: "Revision range (optional, e.g. 100:200 or 150; empty = all)",
+          initial: "",
+        });
+        const dryRun = await promptInput({
+          title: "Merge Source",
+          label: "Dry run first? (yes = show what would merge; anything else = merge)",
+          initial: "yes",
+        });
+        const output = await call(
+          commands.vcsSvnMerge(currentRepo(), from.trim(), range?.trim() || null, /^y/i.test(dryRun?.trim() || "y")),
+        );
+        await refreshNow();
+        notifications().notify({
+          group: "vcs",
+          level: "info",
+          title: tx`Merged ${from.trim()}${/^y/i.test(dryRun?.trim() || "y") ? " (dry run)" : ""}`,
+          body: output.slice(0, 2000) || "no changes",
+        });
       },
     },
     {

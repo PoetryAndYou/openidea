@@ -262,6 +262,7 @@ pub fn builder() -> tauri_specta::Builder<tauri::Wry> {
         vcs::vcs_svn_lock,
         vcs::vcs_svn_unlock,
         vcs::vcs_svn_relocate,
+        vcs::vcs_svn_merge,
         vcs::vcs_svn_copy,
         vcs::vcs_svn_file_revision,
         vcs::vcs_svn_set_message,

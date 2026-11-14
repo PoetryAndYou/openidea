@@ -6511,5 +6511,12 @@
   "Select a file or folder first": "请先选择一个文件或文件夹",
   "Edit Commit Message": "编辑修订注释",
   "Show All Affected Files": "显示所有受影响文件",
-  "The file filter limits the list to the history's own files; this shows every file of the revision.": "文件过滤把列表限定为历史自身的文件；点击显示该修订的全部文件。"
+  "The file filter limits the list to the history's own files; this shows every file of the revision.": "文件过滤把列表限定为历史自身的文件；点击显示该修订的全部文件。",
+  "Merge Source…": "合并源代码…",
+  "Branch URL to merge from (e.g. …/branches/my-feature[@123])": "要合并的分支 URL（如 …/branches/my-feature[@123]）",
+  "Revision range (optional, e.g. 100:200 or 150; empty = all)": "修订范围（可选，如 100:200 或 150；留空=全部）",
+  "Dry run first? (yes = show what would merge; anything else = merge)": "先试运行？（yes=只显示会合并的内容；其他=实际合并）",
+  "Merged {from} (dry run)": "已合并 {from}（试运行）",
+  "Merged {from}": "已合并 {from}",
+  "no changes": "无变更"
 }

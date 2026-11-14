@@ -449,6 +449,41 @@ impl SvnRepo {
         self.run(&args).map(|_| ())
     }
 
+    /// Merges changes from `from` (a branch URL, optionally `@rev`) into the
+    /// working copy (`svn merge`). Conflicts are left in the tree
+    /// (`--accept postpone`); with `dry_run` nothing is modified.
+    pub fn merge(&self, from: &str, range: Option<&str>, dry_run: bool) -> IdeResult<String> {
+        let mut args = vec!["merge".to_string(), "--non-interactive".to_string()];
+        if dry_run {
+            args.push("--dry-run".into());
+        }
+        if let Some(range) = range.filter(|r| !r.is_empty()) {
+            args.push("-r".into());
+            args.push(range.into());
+        }
+        args.push(from.into());
+        args.push(".".into());
+        let args: Vec<&str> = args.iter().map(String::as_str).collect();
+        let out = self.output(&args)?;
+        let text = String::from_utf8_lossy(&out.stdout).into_owned();
+        if !out.status.success() {
+            let stderr = stderr_excerpt(&out.stderr);
+            // A mixed-revision working copy cannot merge; IDEA updates first, so
+            // do that once and retry (update keeps local changes).
+            if stderr.contains("E195020") {
+                self.update()?;
+                let out = self.output(&args)?;
+                let text = String::from_utf8_lossy(&out.stdout).into_owned();
+                if !out.status.success() {
+                    return Err(IdeError::internal(format!("svn: {}", stderr_excerpt(&out.stderr))));
+                }
+                return Ok(if text.is_empty() { stderr_excerpt(&out.stderr) } else { text });
+            }
+            return Err(IdeError::internal(format!("svn: {stderr}")));
+        }
+        Ok(if text.is_empty() { stderr_excerpt(&out.stderr) } else { text })
+    }
+
     /// Points the working copy at a new repository URL (`svn relocate`).
     pub fn relocate(&self, url: &str) -> IdeResult<()> {
         self.run(&["relocate", &self.root.to_string_lossy(), url])?;

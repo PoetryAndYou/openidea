@@ -510,6 +510,8 @@ export const commands = {
 	vcsSvnUnlock: (paths: string[]) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_unlock", { paths })),
 	/**  Points the working copy at another repository URL (`svn relocate`). */
 	vcsSvnRelocate: (repo: string | null, url: string) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_relocate", { repo, url })),
+	/**  Merges changes from a branch URL into the working copy (`svn merge`). */
+	vcsSvnMerge: (repo: string | null, from: string, range: string | null, dryRun: boolean) => typedError<string, IdeError>(__TAURI_INVOKE("vcs_svn_merge", { repo, from, range, dryRun })),
 	/**  Creates a branch or tag from the working copy's URL (`svn copy`). */
 	vcsSvnCopy: (repo: string | null, destination: string, message: string) => typedError<string, IdeError>(__TAURI_INVOKE("vcs_svn_copy", { repo, destination, message })),
 	/**  The revision that last changed a file (`rN`), whose message can be edited. */

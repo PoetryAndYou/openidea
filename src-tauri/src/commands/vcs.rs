@@ -941,6 +941,20 @@ pub async fn vcs_svn_unlock(window: Window, state: State<'_, AppState>, paths: V
     ide_host::ops::vcs::vcs_svn_unlock(&state.host, window.label(), paths).await
 }
 
+/// Merges changes from a branch URL into the working copy (`svn merge`).
+#[tauri::command]
+#[specta::specta]
+pub async fn vcs_svn_merge(
+    window: Window,
+    state: State<'_, AppState>,
+    repo: Option<PathBuf>,
+    from: String,
+    range: Option<String>,
+    dryRun: bool,
+) -> IdeResult<String> {
+    ide_host::ops::vcs::vcs_svn_merge(&state.host, window.label(), repo, from, range, dryRun).await
+}
+
 /// Points the working copy at another repository URL (`svn relocate`).
 #[tauri::command]
 #[specta::specta]

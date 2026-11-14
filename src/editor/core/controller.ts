@@ -1945,6 +1945,7 @@ function svnMenu(path: string): MenuItem {
       { kind: "action", action: "vcs.svnRevert", arg: [path], label: "Revert…" },
       { kind: "separator" },
       { kind: "action", action: "vcs.svnUpdate", label: "Update" },
+      { kind: "action", action: "vcs.svnMerge", label: "Merge Source…" },
       { kind: "action", action: "vcs.svnShowRevision", label: "Show Current Revision" },
       { kind: "action", action: "vcs.svnProperties", arg: [path], label: "Edit Properties…" },
       { kind: "action", action: "vcs.svnSetMessage", arg: [path], label: "Edit Commit Message…" },
