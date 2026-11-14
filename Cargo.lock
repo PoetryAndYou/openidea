@@ -4958,7 +4958,7 @@ dependencies = [
 
 [[package]]
 name = "ide-vcs-svn"
-version = "0.1.38"
+version = "0.1.45"
 dependencies = [
  "dunce",
  "ide-core",

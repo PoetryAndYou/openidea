@@ -111,6 +111,8 @@ const UNTRANSLATED = new Set<string>([
   "JaCoCo",
   // Docker run target placeholder values
   "compose.yaml",
+  // Subversion keyword values, kept as written
+  "native | LF | CRLF | CR",
   "python:3.12",
   // Go environment variables and placeholder values
   "CGO",

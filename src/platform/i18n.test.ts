@@ -262,6 +262,7 @@ describe("catalogs", () => {
     "16384 MB",
     "Docker",
     "JUnit",
+    "Subversion",
     "⌘Enter",
     "Fork",
     "Shell",

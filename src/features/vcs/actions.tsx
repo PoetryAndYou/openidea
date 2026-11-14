@@ -49,8 +49,8 @@ import { openDialog } from "./dialogs";
 import { gotoChange, rollbackSelectedLines } from "./gutter";
 import { openLocalHistory } from "./localHistoryKind";
 import { showSelectionHistory } from "./selectionHistoryKind";
-import { openLogTab, presentLoadedLog, reloadLog, revealCommit, selectGitTab, setLogFilters, useGitLog } from "./logStore";
-import { commitFromContext, isModalCommit, openCommit, pushAfterCommit } from "./commitUi";
+import { openLogTab, presentLoadedLog, revealCommit, selectGitTab, useGitLog } from "./logStore";
+import { commitFromContext, isModalCommit, pushAfterCommit } from "./commitUi";
 import { allRepos, runRemote } from "./ops";
 import { showPushDialog, showUpdateDialog, type PushTarget, type UpdateTarget } from "./remoteUi";
 import { comparePathsWithRevision, showDirectoryWorkingDiff } from "./comparePaths";
@@ -914,7 +914,7 @@ export function registerVcsActions(): () => void {
         notifications().notify({
           group: "vcs",
           level: "info",
-          title: tx`Merged ${from.trim()}${/^y/i.test(dryRun?.trim() || "y") ? " (dry run)" : ""}`,
+          title: /^y/i.test(dryRun?.trim() || "y") ? tx`Merged ${from.trim()} (dry run)` : tx`Merged ${from.trim()}`,
           body: output.slice(0, 2000) || "no changes",
         });
       },
@@ -980,9 +980,9 @@ export function registerVcsActions(): () => void {
         notifications().notify({
           group: "vcs",
           level: "info",
-          title: changed.length
-            ? tx`Added to svn:ignore in ${changed.length} folder${changed.length === 1 ? "" : "s"}`
-            : tx`Already ignored`,
+          title: changed.length === 1
+            ? tx`Added to svn:ignore in 1 folder`
+            : tx`Added to svn:ignore in ${changed.length} folders`,
         });
       },
     },

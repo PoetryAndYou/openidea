@@ -2035,7 +2035,7 @@ mod maven_linkage_tests {
         settings.languages.java.maven.linked_projects = vec!["../B/pom.xml".into()];
         assert_eq!(super::content_roots(&settings, &a, &base.join("cache")), vec![b]);
         // External links must not replace jdtls's scan of the opened root with a build-file list.
-        assert_eq!(super::jdtls_maven_import(&a, &settings), (Vec::new(), None));
+        assert_eq!(super::jdtls_maven_import(&a, &settings), (Vec::new(), None, None));
         settings.languages.java.maven.linked_projects.clear();
         assert!(super::content_roots(&settings, &a, &base.join("cache")).is_empty());
     }

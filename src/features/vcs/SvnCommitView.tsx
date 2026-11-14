@@ -196,7 +196,7 @@ export function SvnCommitView() {
         <CheckMark
           checked={r.checked}
           indeterminate={false}
-          label={`Include ${r.relPath} in commit`}
+          label={tx`Include ${r.relPath} in commit`}
           onToggle={() => setChecked((c) => ({ ...c, [r.path]: !r.checked }))}
         />
         <Icon name={fileIconName(basename(r.path), r.path)} size={16} className={styles.icon} />
@@ -262,7 +262,7 @@ export function SvnCommitView() {
           <CheckMark
             checked={all}
             indeterminate={!all && some}
-            label={`Include all ${title} in commit`}
+            label={tx`Include all ${title} in commit`}
             onToggle={() => toggleGroup(list, !all)}
           />
           <span className={styles.groupTitle}>
@@ -312,7 +312,7 @@ export function SvnCommitView() {
           <CheckMark
             checked={all}
             indeterminate={!all && some}
-            label={`Include all ${title} changes in commit`}
+            label={tx`Include all ${title} changes in commit`}
             onToggle={() => toggleGroup(own, !all)}
           />
           <Icon name="folder" size={14} />
