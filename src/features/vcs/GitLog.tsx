@@ -129,6 +129,10 @@ import { browseRepositoryAt, openExternalLog } from "./RevisionBrowser";
 import { invalidateLogDetails, loadLogDetails, useCommitDetails } from "./logDetails";
 
 const ROW = 26;
+
+/** The author as `Name <email>` — a Subversion author has no email, and stays bare. */
+const authorIdentity = (c: { author: string; email: string }): string =>
+  c.email ? `${c.author} <${c.email}>` : c.author;
 const LANE = 14;
 interface LogColumn {
   id: string;
@@ -817,7 +821,7 @@ function FilterBar() {
         ? repositories
         : [currentRepo()];
     const users = await Promise.all(roots.map((repo) => call(commands.vcsLogUsers(repo)).catch(() => [] as string[])));
-    const authors = [...new Set(users.flat().concat(commits.map((c) => `${c.author} <${c.email}>`)))].sort((a, b) =>
+    const authors = [...new Set(users.flat().concat(commits.map(authorIdentity)))].sort((a, b) =>
       a.localeCompare(b),
     );
     menuBelow(anchor, [
@@ -2274,7 +2278,7 @@ function CommitRowView({
               column.id === "hash" && styles.hash,
             )}
             style={{ width: opts.columnWidths[column.id] ?? column.width ?? 120 }}
-            title={column.id === "author" ? `${c.author} <${c.email}>` : undefined}
+            title={column.id === "author" ? authorIdentity(c) : undefined}
           >
             {column.render(c)}
           </span>
@@ -2918,7 +2922,7 @@ function CommitMessage({ commit, compact = false }: { commit: Commit; compact?: 
         >
           {commit.shortId}
         </button>{" "}
-        {commit.author} &lt;{commit.email}&gt;
+        {authorIdentity(commit)}
         {commit.timeMs ? " " + tx`on ${new Date(commit.timeMs).toLocaleString()}` : ""}
       </div>
       {!compact &&
