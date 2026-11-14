@@ -1031,8 +1031,86 @@ pub async fn vcs_remote(
 /// The user's side is `ours` (sides swapped during a rebase, as in IDEA).
 pub async fn vcs_conflict_versions(host: &Host, window: &str, path: PathBuf) -> IdeResult<ide_vcs::MergeVersions> {
     let project = host.project(window)?;
+    let svn = blocking({
+        let path = path.clone();
+        let project = project.clone();
+        move || Ok(project.svn_repos().for_path(&path).cloned())
+    })
+    .await?;
+    if let Some(svn) = svn {
+        // A Subversion conflict keeps .mine and .r<base>/.r<incoming> next to the
+        // file: they are the merge editor's sides (ours reconstructed from the
+        // markers), and "Apply" marks the file resolved instead of staging.
+        return blocking(move || conflict_versions_svn(&path)).await;
+    }
     blocking(move || project.with_repo_of(&path, |r| r.merge_versions(&path, project.vcs_encoding(&path, Some(":2"))?)))
         .await
+}
+
+/// `ours` from a conflict-marked working file: the text between `<<<<<<<` and
+/// the next marker in every conflict block, markers dropped.
+fn ours_from_markers(text: &str) -> String {
+    let mut out: Vec<&str> = Vec::new();
+    let mut section: Option<&str> = None;
+    for line in text.lines() {
+        let trimmed = line.trim_start();
+        if trimmed.starts_with("<<<<<<<") {
+            section = Some("ours");
+            continue;
+        }
+        if trimmed.starts_with("|||||||") {
+            section = Some("base");
+            continue;
+        }
+        if trimmed.starts_with("=======") {
+            section = Some("theirs");
+            continue;
+        }
+        if trimmed.starts_with(">>>>>>>") {
+            section = None;
+            continue;
+        }
+        if section.is_none() || section == Some("ours") {
+            out.push(line);
+        }
+    }
+    out.join("\n")
+}
+
+/// The merge editor's sides of a Subversion conflict, from the side files.
+fn conflict_versions_svn(path: &Path) -> IdeResult<ide_vcs::MergeVersions> {
+    let read = |suffix: &str| -> Option<String> {
+        let side = path.with_file_name(format!("{}{suffix}", path.file_name().unwrap_or_default().to_string_lossy()));
+        std::fs::read_to_string(side).ok()
+    };
+    let ours = read(".mine").map(|text| ours_from_markers(&text));
+    // `.r<base>` and `.r<incoming>`: the lower revision is the common ancestor.
+    let mut revisions: Vec<(u64, String)> = Vec::new();
+    if let Some(dir) = path.parent() {
+        let stem = path.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let name = entry.file_name().to_string_lossy().into_owned();
+                if let Some(rest) = name.strip_prefix(&format!("{stem}.r")) {
+                    if let Ok(number) = rest.parse::<u64>() {
+                        if let Ok(text) = std::fs::read_to_string(entry.path()) {
+                            revisions.push((number, text));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    revisions.sort_by_key(|(number, _)| *number);
+    let base = revisions.first().map(|(_, text)| text.clone());
+    let theirs = revisions.last().map(|(_, text)| text.clone()).filter(|_| revisions.len() > 1);
+    Ok(ide_vcs::MergeVersions {
+        base,
+        ours,
+        theirs,
+        sides: ide_vcs::MergeSides { operation: None, reversed: false, branch: None, commit: None, other_branch: None },
+        merged: None,
+    })
 }
 
 pub async fn vcs_diff_text(host: &Host, window: &str, path: PathBuf, staged: bool) -> IdeResult<String> {
