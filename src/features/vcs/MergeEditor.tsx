@@ -538,6 +538,14 @@ export function MergeEditor({ input }: { input: EditorInput }) {
   }, [actionHost]);
 
   const focusProps = {
+    onMouseDownCapture: () => {
+      // WebKit never focuses buttons on click, so a footer/toolbar click after the
+      // focus moved elsewhere finds every merge action gated off and does nothing.
+      // Arming the host on mousedown runs before the click's action.
+      setFocusedMergeEditor(actionHost);
+      setFocusedDiffNavigator(nav);
+      setContext("diffEditorFocus", true);
+    },
     onFocusCapture: (e: React.FocusEvent<HTMLDivElement>) => {
       const target = e.target as Node;
       if (oursRef.current?.contains(target)) paneRef.current = "left";
