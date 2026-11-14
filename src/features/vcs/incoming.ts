@@ -8,7 +8,7 @@ import { Channel } from "@tauri-apps/api/core";
 import { call, commands, isTauri, nextRequestId } from "@/platform/ipc";
 import { onWorkflowSettingsChange, workflowSettings } from "@/platform/workflowSettings";
 import { logConsole } from "./ops";
-import { currentRepo, loadBranches, refreshNow, useVcs } from "./store";
+import { currentRepo, loadBranches, refreshNow, useVcs, vcsKind } from "./store";
 
 const FIRST_DELAY = 20_000;
 const INTERVAL = 15 * 60_000;
@@ -29,6 +29,10 @@ export function installIncomingCheck(): () => void {
   const check = async () => {
     const s = useVcs.getState();
     if (!s.available || !s.branch?.upstream || s.remoteBusy) return schedule(INTERVAL);
+    // A Subversion working copy's upstream is the repository URL and its incoming
+    // commits arrive through its update; the Git fetch machinery has no repository
+    // to ask and would only fail into the console.
+    if (vcsKind(currentRepo()) === "svn") return schedule(INTERVAL);
     const channel = new Channel<string>();
     channel.onmessage = () => undefined;
     try {
