@@ -12,7 +12,7 @@ import { baseName, dirName, relTo, stripSlash } from "./model";
 import { controlLabel, controlOperation, inProgress, operationTitle, type InProgress } from "./operations";
 import { runOp, writeFileText } from "./ops";
 import { executeAction } from "@/platform/actions";
-import { conflictedFiles, useVcs } from "./store";
+import { conflictedFiles, repoOf, useVcs, vcsKind } from "./store";
 import styles from "./common.module.css";
 import { tx } from "@/platform/i18n";
 
@@ -57,7 +57,9 @@ export async function acceptSide(f: FileStatus, side: "ours" | "theirs") {
       } else {
         await writeFileText(path, text, { save: true });
       }
-      await call(commands.vcsStage([path]));
+      // Subversion has no index: resolving marks the file resolved.
+      if (vcsKind(repoOf(path)) === "svn") await call(commands.vcsSvnResolve([path]));
+      else await call(commands.vcsStage([path]));
     },
     { success: tx`${baseName(path)} resolved` },
   );
