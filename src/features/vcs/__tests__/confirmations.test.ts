@@ -16,7 +16,14 @@ vi.mock("@/platform/workflowSettings", () => ({
 }));
 vi.mock("../store", async () => {
   const { create } = await import("zustand");
-  return { useVcs: create(() => ({})), refreshNow: mocks.refresh, beginGitWork: () => () => {} };
+  return {
+    useVcs: create(() => ({})),
+    refreshNow: mocks.refresh,
+    beginGitWork: () => () => {},
+    // The confirmations pick the VCS name and command by kind; these tests are Git-only.
+    currentRepoRoot: () => "/p",
+    vcsKind: () => "git",
+  };
 });
 import { notifyFileOperation } from "@/platform/fileOps";
 import { useProject } from "@/platform/project";
