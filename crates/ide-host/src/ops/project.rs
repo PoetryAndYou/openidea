@@ -16,6 +16,9 @@ pub struct ProjectInfo {
     #[serde(default)]
     pub display_name: String,
     pub is_git: bool,
+    /// The project contains Subversion working copies (`svn` CLI required).
+    #[serde(default)]
+    pub is_svn: bool,
     pub settings: Settings,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub workspace: Option<ide_workspace::workspace::Workspace>,
@@ -40,6 +43,7 @@ pub fn info(project: &Project) -> ProjectInfo {
             .unwrap_or_else(|| primary.clone()),
         name: workspace.as_ref().filter(|w| w.is_container(&project.root)).map(|w| w.name.clone()).unwrap_or(primary),
         is_git: !project.repos.read().is_empty(),
+        is_svn: !project.svn_repos.read().is_empty(),
         settings,
         root: project.root.clone().into(),
         workspace,

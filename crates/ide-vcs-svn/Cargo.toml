@@ -1,0 +1,20 @@
+[package]
+name = "ide-vcs-svn"
+description = "Subversion working-copy support: wraps the svn command-line client"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+dunce.workspace = true
+ide-core.workspace = true
+ide-vcs.workspace = true
+ignore.workspace = true
+roxmltree.workspace = true
+serde.workspace = true
+specta.workspace = true
+tracing.workspace = true
+which = "8"
+
+[dev-dependencies]
+tempfile.workspace = true

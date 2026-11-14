@@ -23,8 +23,10 @@ export interface RepoHead {
 }
 
 export interface VcsState {
-  /** The open project is a git repository. */
+  /** The open project is a git repository or a Subversion working copy. */
   available: boolean;
+  /** Backend kind per repository root: `git` (default) or `svn`. */
+  kinds: Record<string, "git" | "svn">;
   root: string | null;
   /** Repository roots, the project's own repository first. */
   roots: string[];
@@ -54,6 +56,7 @@ export interface VcsState {
 
 const initial: VcsState = {
   available: false,
+  kinds: {},
   root: null,
   roots: [],
   operations: {},
@@ -84,6 +87,12 @@ export function currentRepo(): string | null {
 export function currentRepoRoot(): string | null {
   const s = useVcs.getState();
   return s.repo ?? s.roots[0] ?? s.root;
+}
+
+/** Backend kind of a repository root: `git` (default) or `svn`. */
+export function vcsKind(root: string | null | undefined = currentRepoRoot()): "git" | "svn" {
+  if (!root) return "git";
+  return useVcs.getState().kinds[root] ?? "git";
 }
 
 /** Root of the innermost repository containing `path`. */
@@ -236,6 +245,7 @@ export function refreshNow(): Promise<void> {
         scoped,
       ]);
       const roots = vcsRoots.map((r) => r.root);
+      const kinds = Object.fromEntries(vcsRoots.map((r) => [r.root, r.kind ?? "git"])) as Record<string, "git" | "svn">;
       if ("error" in selected) {
         // The selected repository is gone (removed since the last scan): fall back to the primary one.
         if (!s.repo || roots.includes(s.repo)) throw selected.error;
@@ -249,7 +259,7 @@ export function refreshNow(): Promise<void> {
       const shown = s.repo && roots.includes(s.repo) ? s.repo : (roots[0] ?? null);
       const repo = attentionRepo(shown, s.operations, operations) ?? shown;
       const heads = Object.fromEntries(vcsRoots.map((r) => [r.root, { head: r.head, headCommit: r.headCommit }]));
-      useVcs.setState({ operations, heads });
+      useVcs.setState({ operations, heads, kinds });
       const sameRoots = roots.join("\n") === s.roots.join("\n");
       if (repo !== s.repo || !sameRoots) useVcs.setState({ roots: sameRoots ? s.roots : roots, repo });
       applyStatus(status, branch);
@@ -406,7 +416,7 @@ export async function discoverRoots() {
 export function installVcsStore(): () => void {
   const onProject = () => {
     const project = useProject.getState().project;
-    const available = !!project?.isGit;
+    const available = !!project?.isGit || !!project?.isSvn;
     const root = project?.root ?? null;
     if (useVcs.getState().root === root && useVcs.getState().available === available) return;
     clearTimeout(timer);

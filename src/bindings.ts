@@ -82,6 +82,8 @@ export const commands = {
 	name: string,
 	displayName: string,
 	isGit: boolean,
+	/**  The project contains Subversion working copies (`svn` CLI required). */
+	isSvn: boolean,
 	settings: Settings_Serialize,
 	workspace?: Workspace_Serialize | null,
 	unity?: UnityProjectInfo | null,
@@ -634,6 +636,16 @@ export const commands = {
 	vcsStatusPaths: (paths: string[]) => typedError<FileStatus[], IdeError>(__TAURI_INVOKE("vcs_status_paths", { paths })),
 	/**  The project's repositories, the primary one first. */
 	vcsRoots: () => typedError<VcsRoot[], IdeError>(__TAURI_INVOKE("vcs_roots")),
+	/**  `svn info` of the project's working copy. */
+	vcsSvnInfo: (repo: string | null) => typedError<SvnInfo, IdeError>(__TAURI_INVOKE("vcs_svn_info", { repo })),
+	/**  `svn update`: brings the working copy to HEAD, keeping local changes. */
+	vcsSvnUpdate: (repo: string | null) => typedError<UpdateSummary, IdeError>(__TAURI_INVOKE("vcs_svn_update", { repo })),
+	/**  SVN commit of the selected paths with a message; returns the new revision (`rN`). */
+	vcsSvnCommit: (repo: string | null, paths: string[], message: string) => typedError<string, IdeError>(__TAURI_INVOKE("vcs_svn_commit", { repo, paths, message })),
+	/**  Schedules paths for addition (`svn add`). */
+	vcsSvnAdd: (paths: string[]) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_add", { paths })),
+	/**  Reverts working changes of paths (`svn revert`). */
+	vcsSvnRevert: (paths: string[]) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_revert", { paths })),
 	vcsBranchInfo: (repo: string | null) => typedError<BranchInfo, IdeError>(__TAURI_INVOKE("vcs_branch_info", { repo })),
 	/**  Gutter change markers for a file, computed against its current (unsaved) text. */
 	vcsLineHunks: (path: string) => typedError<LineHunk[], IdeError>(__TAURI_INVOKE("vcs_line_hunks", { path })),
@@ -8615,6 +8627,8 @@ export type ProjectInfo_Deserialize = {
 	name: string,
 	displayName?: string,
 	isGit: boolean,
+	/**  The project contains Subversion working copies (`svn` CLI required). */
+	isSvn?: boolean,
 	settings: Settings_Deserialize,
 	workspace?: Workspace_Deserialize | null,
 	unity?: UnityProjectInfo | null,
@@ -8626,6 +8640,8 @@ export type ProjectInfo_Serialize = {
 	name: string,
 	displayName: string,
 	isGit: boolean,
+	/**  The project contains Subversion working copies (`svn` CLI required). */
+	isSvn: boolean,
 	settings: Settings_Serialize,
 	workspace?: Workspace_Serialize | null,
 	unity?: UnityProjectInfo | null,
@@ -10025,6 +10041,24 @@ export type StructureSupport = {
 	locals: boolean,
 };
 
+/**  The working copy's repository identity and last-changed revision. */
+export type SvnInfo = {
+	/**  URL of the working copy's root. */
+	url: string,
+	/**  The URL relative to the repository root, e.g. `^/trunk`. */
+	relativeUrl: string,
+	/**  URL of the repository root. */
+	repoRoot: string,
+	/**  The repository's UUID. */
+	uuid: string,
+	/**  Revision of the working copy's root. */
+	revision: string,
+	/**  Author of the last change of the root. */
+	author: string,
+	/**  Time of that change, epoch milliseconds. */
+	date: number | null,
+};
+
 export type SymbolFilter = "all" | 
 /**  Go to Class (⌘O): classes, interfaces, structs, enums, traits, type aliases. */
 "types";
@@ -10541,6 +10575,14 @@ export type UpdateStatus = {
 	checking: boolean,
 };
 
+/**  The result of [`SvnRepo::update`]. */
+export type UpdateSummary = {
+	/**  The working copy's revision afterwards, `rN`. */
+	revision: string,
+	/**  `svn update`'s output; conflicts are left in the working copy. */
+	output: string,
+};
+
 export type Variable = {
 	name: string,
 	value: string,
@@ -10572,6 +10614,8 @@ export type VcsRoot = {
 	head: string | null,
 	/**  HEAD commit; `None` before the first commit. */
 	headCommit: string | null,
+	/**  Backend kind: `git` (default) or `svn`. */
+	kind?: string,
 };
 
 /**  Version Control (main page) and its sub-pages. */

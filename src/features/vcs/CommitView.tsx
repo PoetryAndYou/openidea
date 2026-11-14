@@ -99,6 +99,7 @@ import { runOp } from "./ops";
 import { ShelfPanel, loadShelves, useShelf } from "./shelf";
 import { refreshNow, repoName, selectRepo, useVcs } from "./store";
 import { saveVcsSetting } from "./settingsUi";
+import { SvnCommitView } from "./SvnCommitView";
 import styles from "./CommitView.module.css";
 
 /** MIME type of files dragged onto a change list (absolute paths, newline-separated). */
@@ -165,6 +166,7 @@ export function CommitTabs() {
 
 export function CommitToolWindow() {
   const available = useVcs((s) => s.available);
+  const kind = useVcs((s) => (s.repo ? (s.kinds[s.repo] ?? "git") : (s.kinds[s.roots[0] ?? ""] ?? "git")));
   const combine = useWorkflowSettings((s) => s.vcs.git.combineStashAndShelf);
   const tab = stashTabOf(
     useCommit((s) => s.tab),
@@ -176,7 +178,11 @@ export function CommitToolWindow() {
         <T>Open a Git repository to commit changes.</T>
       </EmptyState>
     );
-  return <div className={styles.root}>{tab === "changes" ? <ChangesPanel /> : <StashContent tab={tab} />}</div>;
+  return (
+    <div className={styles.root}>
+      {tab === "changes" ? (kind === "svn" ? <SvnCommitView /> : <ChangesPanel />) : <StashContent tab={tab} />}
+    </div>
+  );
 }
 
 /** The Shelf, Stash or combined "Stashes and Shelves" tab. */
