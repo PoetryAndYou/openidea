@@ -6543,7 +6543,7 @@ export type JavaSettings = {
 	 *  (VS Code's `java.jdt.ls.vmargs`).
 	 */
 	jdtlsVmArgs?: string,
-/**  Share one JDT LS across builds in an ordinary project window; other windows remain separate. */
+	/**  Share one JDT LS across builds in an ordinary project window; other windows remain separate. */
 	jdtlsShared?: boolean,
 	/**
 	 *  Import a folder that is both a Gradle build and an Eclipse project (a
