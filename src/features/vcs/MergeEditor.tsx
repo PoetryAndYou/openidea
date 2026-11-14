@@ -59,7 +59,7 @@ import {
 import { MergeFooter, MergeToolbar } from "./MergeToolbar";
 import { baseName } from "./model";
 import { errorMessage, runOp, writeFileText } from "./ops";
-import { refreshNow } from "./store";
+import { refreshNow, repoOf, vcsKind } from "./store";
 import styles from "./MergeEditor.module.css";
 
 import type { MergeData } from "./mergeKind";
@@ -278,7 +278,9 @@ export function MergeEditor({ input }: { input: EditorInput }) {
       async () => {
         if (text === null) await call(commands.fsDelete(path));
         else await writeFileText(path, text, { save: true, exact: true });
-        await call(commands.vcsStage([path]));
+        // Subversion has no index: resolving marks the file resolved.
+        if (vcsKind(repoOf(path)) === "svn") await call(commands.vcsSvnResolve([path]));
+        else await call(commands.vcsStage([path]));
         return true;
       },
       { success: tx`${baseName(path)}: conflicts resolved` },
