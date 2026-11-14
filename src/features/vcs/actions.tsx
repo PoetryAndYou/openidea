@@ -516,7 +516,6 @@ export function registerVcsActions(): () => void {
       run: async ({ arg }) => {
         const path = contextPaths(arg)[0];
         if (!path) return;
-        showGitWindow();
         if (vcsKind(repoOf(path)) === "svn") {
           // The Subversion log filters in place: the workbench's per-file tab
           // is a Git surface that never surfaced for Subversion projects, and
@@ -536,15 +535,20 @@ export function registerVcsActions(): () => void {
               limit: 1000,
             }),
           );
-          showGitWindow();
-          selectGitTab("log");
-          // Tag like the paged loader does, so the selection's keys (repo-prefixed)
-          // match these commits and the changed-files pane finds them.
+          // Present before showing the window: the filter is in place even if
+          // the workbench step is unavailable.
           presentLoadedLog(
+            // Tag like the paged loader does, so the selection's keys (repo-prefixed)
+            // match these commits and the changed-files pane finds them.
             commits.map((commit) => ({ ...commit, repo })),
             path,
           );
-        } else openLogTab("history", path);
+          showGitWindow();
+          selectGitTab("log");
+        } else {
+          openLogTab("history", path);
+          showGitWindow();
+        }
       },
     },
     {
