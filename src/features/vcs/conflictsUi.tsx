@@ -49,6 +49,14 @@ export async function acceptSide(f: FileStatus, side: "ours" | "theirs") {
   await runOp(
     side === "ours" ? tx`Accept yours for ${baseName(path)}` : tx`Accept theirs for ${baseName(path)}`,
     async () => {
+      if (vcsKind(repoOf(path)) === "svn") {
+        // Subversion resolves from its own conflict records: it restores the
+        // chosen side, removes the artifacts and deletes the file when that
+        // side deleted it. Reconstructing the side from .mine/.rN here once
+        // deleted a file whose side files could not be found.
+        await call(commands.vcsSvnResolve([path], side === "ours" ? "mine-full" : "theirs-full"));
+        return;
+      }
       const v = await call(commands.vcsConflictVersions(path));
       const text = side === "ours" ? v.ours : v.theirs;
       if (text === null) {
@@ -57,9 +65,7 @@ export async function acceptSide(f: FileStatus, side: "ours" | "theirs") {
       } else {
         await writeFileText(path, text, { save: true });
       }
-      // Subversion has no index: resolving marks the file resolved.
-      if (vcsKind(repoOf(path)) === "svn") await call(commands.vcsSvnResolve([path]));
-      else await call(commands.vcsStage([path]));
+      await call(commands.vcsStage([path]));
     },
     { success: tx`${baseName(path)} resolved` },
   );

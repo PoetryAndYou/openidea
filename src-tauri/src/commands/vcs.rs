@@ -1140,11 +1140,17 @@ pub async fn vcs_svn_cleanup(window: Window, state: State<'_, AppState>, repo: O
     ide_host::ops::vcs::vcs_svn_cleanup(&state.host, window.label(), repo).await
 }
 
-/// Marks conflicts resolved, keeping the working file's content.
+/// Marks conflicts resolved; `accept` is `working` (keep the file),
+/// `mine-full` or `theirs-full` (restore one side).
 #[tauri::command]
 #[specta::specta]
-pub async fn vcs_svn_resolve(window: Window, state: State<'_, AppState>, paths: Vec<PathBuf>) -> IdeResult<()> {
-    ide_host::ops::vcs::vcs_svn_resolve(&state.host, window.label(), paths).await
+pub async fn vcs_svn_resolve(
+    window: Window,
+    state: State<'_, AppState>,
+    paths: Vec<PathBuf>,
+    accept: Option<String>,
+) -> IdeResult<()> {
+    ide_host::ops::vcs::vcs_svn_resolve(&state.host, window.label(), paths, accept).await
 }
 
 /// `svn update -r REV`.

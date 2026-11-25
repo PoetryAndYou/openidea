@@ -362,10 +362,18 @@ impl SvnRepo {
     /// Marks conflicts as resolved, keeping the working file's content
     /// (`svn resolve --accept working`).
     pub fn resolve(&self, paths: &[PathBuf]) -> IdeResult<()> {
+        self.resolve_accept(paths, "working")
+    }
+
+    /// Marks conflicts resolved with Subversion's own choice: `working` keeps
+    /// the file as it is, `mine-full` / `theirs-full` restore one side
+    /// entirely — Subversion itself handles a file that side deleted, the
+    /// conflict artifacts and property conflicts.
+    pub fn resolve_accept(&self, paths: &[PathBuf], accept: &str) -> IdeResult<()> {
         if paths.is_empty() {
             return Ok(());
         }
-        let mut args = vec!["resolve", "--accept", "working"];
+        let mut args = vec!["resolve", "--accept", accept];
         let targets: Vec<String> = paths.iter().map(|path| path.to_string_lossy().into_owned()).collect();
         args.extend(targets.iter().map(String::as_str));
         self.run(&args).map(|_| ())
@@ -628,6 +636,18 @@ impl SvnRepo {
     fn run(&self, args: &[&str]) -> IdeResult<String> {
         let out = self.output(args)?;
         if !out.status.success() {
+            let stderr = String::from_utf8_lossy(&out.stderr).into_owned();
+            // A working copy left mid-operation by a killed client (or another
+            // client that died) answers every command with "run 'cleanup'":
+            // clean it once and retry, so the user does not have to.
+            if args.first().is_some_and(|a| *a != "cleanup") && is_interrupted(&stderr) {
+                let _ = self.output(&["cleanup"]);
+                let retry = self.output(args)?;
+                if retry.status.success() {
+                    return Ok(String::from_utf8_lossy(&retry.stdout).into_owned());
+                }
+                return Err(IdeError::internal(format!("svn: {}", stderr_excerpt(&retry.stderr))));
+            }
             return Err(IdeError::internal(format!("svn: {}", stderr_excerpt(&out.stderr))));
         }
         Ok(String::from_utf8_lossy(&out.stdout).into_owned())
@@ -1181,6 +1201,17 @@ fn absolute(p: &Path) -> PathBuf {
 
 fn xml_error(error: roxmltree::Error) -> IdeError {
     IdeError::internal(format!("svn: invalid XML: {error}"))
+}
+
+/// True when svn refused because the working copy still holds a lock from an
+/// interrupted operation (`E155004` / javaHL's "Previous operation has not
+/// finished") — the state `svn cleanup` clears.
+fn is_interrupted(stderr: &str) -> bool {
+    stderr.contains("run 'cleanup'")
+        || stderr.contains("has not finished")
+        || stderr.contains("E155004")
+        || stderr.contains("E200033")
+        || stderr.contains("E720002")
 }
 
 fn stderr_excerpt(bytes: &[u8]) -> String {

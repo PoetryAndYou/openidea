@@ -279,7 +279,7 @@ export function MergeEditor({ input }: { input: EditorInput }) {
         if (text === null) await call(commands.fsDelete(path));
         else await writeFileText(path, text, { save: true, exact: true });
         // Subversion has no index: resolving marks the file resolved.
-        if (vcsKind(repoOf(path)) === "svn") await call(commands.vcsSvnResolve([path]));
+        if (vcsKind(repoOf(path)) === "svn") await call(commands.vcsSvnResolve([path], null));
         else await call(commands.vcsStage([path]));
         return true;
       },

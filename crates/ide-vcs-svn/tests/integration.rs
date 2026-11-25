@@ -504,3 +504,60 @@ fn merge_applies_branch_changes_to_the_working_copy() {
     let status = repo.status().unwrap();
     assert!(status.iter().any(|f| f.rel_path == "a.txt" && f.unstaged == Some(ChangeKind::Modified)));
 }
+
+/// `svn resolve --accept theirs-full` / `mine-full` restores that side and
+/// drops the conflict artifacts — the way the Conflicts dialog's Accept
+/// buttons resolve. Reconstructing a side from `.mine` / `.rN` once deleted a
+/// file whose artifacts could not be found; Subversion itself never does.
+#[test]
+fn resolve_accept_restores_a_side_without_deleting_the_file() {
+    if !available() {
+        return;
+    }
+    let dir = tempfile::tempdir().unwrap();
+    let base = dunce::canonicalize(dir.path()).unwrap();
+    let repository = base.join("repo");
+    run("svnadmin", &["create", repository.to_str().unwrap()], &base);
+    let url = format!("file://{}", repository.display());
+    let wc = base.join("wc");
+    run("svn", &["checkout", "-q", &url, wc.to_str().unwrap()], &base);
+
+    let file = wc.join("f.txt");
+    write(&file, "line one\n");
+    run("svn", &["add", "-q", "f.txt"], &wc);
+    run("svn", &["commit", "-q", "-m", "base"], &wc);
+
+    // A concurrent edit committed elsewhere, then a conflicting local edit.
+    let other = base.join("other");
+    run("svn", &["checkout", "-q", &url, other.to_str().unwrap()], &base);
+    write(&other.join("f.txt"), "their line\n");
+    run("svn", &["commit", "-q", "-m", "theirs"], &other);
+    write(&file, "my line\n");
+    // svn update exits 0 with a text conflict; the markers are the evidence.
+    run("svn", &["update", "--non-interactive", "--accept", "postpone"], &wc);
+    assert!(
+        std::fs::read_to_string(&file).unwrap().contains("<<<<<<<"),
+        "the update must conflict"
+    );
+
+    let repo = SvnRepo::discover(&wc).unwrap().expect("a working copy");
+    // Accept theirs: the incoming text, artifacts gone, file still there.
+    repo.resolve_accept(&[file.clone()], "theirs-full").unwrap();
+    assert_eq!(std::fs::read_to_string(&file).unwrap(), "their line\n");
+    assert!(!wc.join("f.txt.mine").exists(), "the .mine artifact is gone");
+    assert!(!wc.join("f.txt.r1").exists() || !wc.join("f.txt.r2").exists(), "no side files left");
+    // Nothing conflicted remains in the status.
+    let status = repo.status().unwrap();
+    assert!(
+        status.iter().all(|f| f.unstaged != Some(ChangeKind::Conflicted)),
+        "{status:?}"
+    );
+
+    // Accept yours equalises the working file with the chosen side.
+    write(&file, "my line\n");
+    run("svn", &["update", "--non-interactive", "--accept", "postpone"], &wc);
+    if std::fs::read_to_string(&file).unwrap().contains("<<<<<<<") {
+        repo.resolve_accept(&[file.clone()], "mine-full").unwrap();
+        assert_eq!(std::fs::read_to_string(&file).unwrap(), "my line\n");
+    }
+}

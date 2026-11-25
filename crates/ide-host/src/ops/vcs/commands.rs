@@ -1220,6 +1220,14 @@ fn conflict_versions_svn(path: &Path) -> IdeResult<ide_vcs::MergeVersions> {
     revisions.sort_by_key(|(number, _)| *number);
     let base = revisions.first().map(|(_, text)| text.clone());
     let theirs = revisions.last().map(|(_, text)| text.clone()).filter(|_| revisions.len() > 1);
+    if ours.is_none() && revisions.is_empty() {
+        // No sides to merge: a tree conflict, a binary one, or a conflict whose
+        // artifacts are already gone. Saying so beats three empty panes — and
+        // it keeps a missing side from reading as a deleted file.
+        return Err(ide_core::IdeError::unavailable(
+            "this conflict has no text sides (it may already be resolved, or be a tree or binary conflict)",
+        ));
+    }
     Ok(ide_vcs::MergeVersions {
         base,
         ours,
@@ -1996,13 +2004,24 @@ pub async fn vcs_svn_ignore(host: &Host, window: &str, paths: Vec<PathBuf>) -> I
     .await
 }
 
-/// Marks conflicts resolved, keeping the working file's content (`svn resolve`).
-pub async fn vcs_svn_resolve(host: &Host, window: &str, paths: Vec<PathBuf>) -> IdeResult<()> {
+/// Marks conflicts resolved: `accept` picks the content (`working` keeps the
+/// working file, `mine-full` / `theirs-full` restore one side, Subversion
+/// itself handling deletes and artifacts); `None` is `working`.
+pub async fn vcs_svn_resolve(
+    host: &Host,
+    window: &str,
+    paths: Vec<PathBuf>,
+    accept: Option<String>,
+) -> IdeResult<()> {
     host.require_trust(window)?;
+    let accept = accept.unwrap_or_else(|| "working".to_string());
+    if !matches!(accept.as_str(), "working" | "mine-full" | "theirs-full") {
+        return Err(ide_core::IdeError::invalid("unknown svn resolve choice"));
+    }
     let project = host.project(window)?;
     blocking(move || {
         for (repo, paths) in group_svn_paths(&project, &paths) {
-            repo.resolve(&paths)?;
+            repo.resolve_accept(&paths, &accept)?;
         }
         project.sink.emit(ide_core::IdeEvent::VcsChanged { root: project.root.clone().into() });
         Ok(())
@@ -2097,7 +2116,7 @@ pub(crate) fn register(d: &mut Dispatcher) {
     d.add("vcs_svn_delete", |c| async move { vcs_svn_delete(&c.host, &c.window, c.arg("paths")?).await });
     d.add("vcs_svn_ignore", |c| async move { vcs_svn_ignore(&c.host, &c.window, c.arg("paths")?).await });
     d.add("vcs_svn_cleanup", |c| async move { vcs_svn_cleanup(&c.host, &c.window, c.arg("repo")?).await });
-    d.add("vcs_svn_resolve", |c| async move { vcs_svn_resolve(&c.host, &c.window, c.arg("paths")?).await });
+    d.add("vcs_svn_resolve", |c| async move { vcs_svn_resolve(&c.host, &c.window, c.arg("paths")?, c.arg("accept")?).await });
     d.add("vcs_svn_update_to", |c| async move {
         vcs_svn_update_to(&c.host, &c.window, c.arg("repo")?, c.arg("revision")?).await
     });

@@ -672,8 +672,11 @@ export const commands = {
 	vcsSvnIgnore: (paths: string[]) => typedError<IpcPath[], IdeError>(__TAURI_INVOKE("vcs_svn_ignore", { paths })),
 	/**  `svn cleanup`: removes stale locks left by an interrupted operation. */
 	vcsSvnCleanup: (repo: string | null) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_cleanup", { repo })),
-	/**  Marks conflicts resolved, keeping the working file's content. */
-	vcsSvnResolve: (paths: string[]) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_resolve", { paths })),
+	/**
+	 *  Marks conflicts resolved; `accept` is `working` (keep the file),
+	 *  `mine-full` or `theirs-full` (restore one side).
+	 */
+	vcsSvnResolve: (paths: string[], accept: string | null) => typedError<null, IdeError>(__TAURI_INVOKE("vcs_svn_resolve", { paths, accept })),
 	/**  `svn update -r REV`. */
 	vcsSvnUpdateTo: (repo: string | null, revision: string) => typedError<UpdateSummary, IdeError>(__TAURI_INVOKE("vcs_svn_update_to", { repo, revision })),
 	/**  Reverts working changes of paths (`svn revert`). */

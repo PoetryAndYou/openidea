@@ -961,7 +961,7 @@ export function registerVcsActions(): () => void {
           notifications().notify({ group: "vcs", level: "info", title: tx`No conflicts to resolve` });
           return;
         }
-        await call(commands.vcsSvnResolve(paths));
+        await call(commands.vcsSvnResolve(paths, null));
         await refreshNow();
       },
     },
